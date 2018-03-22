@@ -51,6 +51,7 @@ colnames(crime0)
 # levels(crime0$prbconv)
 crime0$prbconv = as.numeric(levels(crime0$prbconv))[crime0$prbconv]
 
+# FIXME: is it better to replace with NA instead of removing the data?
 crime = crime0 %>% 
   filter(prbconv <= 1.0) %>% 
   filter(prbarr <= 1.0) %>% 
@@ -99,6 +100,14 @@ Interesting causal questions:
 * Can high % of young males drive crime?
 * Can low wages cause crime?
 * Can high numbers of minorities cause crime, esp hate crime?
+
+## County and crime rate
+
+Crime seems to be uniformly distributed across the counties.
+
+```{r}
+hist(crime$county)
+```
 
 ## Arrests and crime rate
 
@@ -287,6 +296,106 @@ There is a marked increase in slope.  However, we have a wide band of crime rate
 ```{r}
 summary(m)
 ```
+
+## Wages and crime rate
+
+As wage goes up, crime seems to go up.
+
+```{r}
+par(mfrow = c(3, 3))
+m = lm(crime$crmrte ~ crime$wcon, data=crime)
+plot(crime$wcon, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wfed, data=crime)
+plot(crime$wfed, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wfir, data=crime)
+plot(crime$wfir, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wloc, data=crime)
+plot(crime$wloc, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wmfg, data=crime)
+plot(crime$wmfg, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wser, data=crime)
+plot(crime$wser, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wsta, data=crime)
+plot(crime$wsta, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wtrd, data=crime)
+plot(crime$wtrd, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wtuc, data=crime)
+plot(crime$wtuc, crime$crmrte)
+abline(m)
+```
+
+### Checking for collinearity
+
+Let us look for pairs of variables with high correlation.
+
+```{r}
+# Build the matrix
+crime_cor_matrix <- round(cor(crime), 2)
+# It is symmetric
+crime_cor_matrix[upper.tri(crime_cor_matrix, diag=TRUE)] <- NA
+crime_cor_df <- as.data.frame(as.table(crime_cor_matrix))
+# Select pairs with high correlation
+crime_cor_df %>% 
+  filter(abs(Freq) >= 0.66) %>% 
+  arrange(desc(Freq)) %>% 
+  select(everything()) 
+```
+
+We see that $urban$ and $density$ have high correlation, so we can use one instead of both.  There is also high correlation between wages in finance and investments $wfir$ vs. trade and retail $wtrd$.  We can keep one instead of the other.
+
+### Selecting variables based on statistical significance
+
+First, we will simply try to fit all the independent variables and then remove those that do not add a lot of statistical significance.
+
+```{r}
+# Source: https://www.youtube.com/watch?v=I4z3yjoEADY
+m <- lm(crime$crmrte ~ ., crime)
+summary(m)
+```
+
+The default model has an $R^2$ value of 0.85.
+
+We see that the following variables are significant (p > 0.1):
+
+* county
+* prbconv
+* prbpris
+* west
+* urban
+* wcon
+* wtuc
+* wtrd
+* wmfg
+* wfed
+* wloc
+* mix
+
+Let us try to build a newer model with the above (fewer) variables.
+
+```{r}
+m <- lm(crime$crmrte ~ county + prbconv + prbpris + 
+          west + urban + wcon + wtuc + wtrd + wmfg +
+          wfed + wloc + mix, crime)
+summary(m)
+```
+
+Our $R^2$ dropped to 0.5.
 
 Possible policy suggestions:
 
