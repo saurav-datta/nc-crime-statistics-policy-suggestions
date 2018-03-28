@@ -1,0 +1,279 @@
+---
+title: "Lab3 Draft, w203: Statistics for Data Science"
+author: "Avinash Chandrasekaran"
+date: "March 26, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Introduction
+
+Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime
+statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand the
+determinants of crime and to generate policy suggestions that are applicable to local government.
+
+The data provided consists of 25 variables and 91 different observations collected in a given year. For the analysis made in this research, we will assume that the data collected from different counties in NC were randomly sampled.
+
+
+# 2. Exploratory Analysis
+
+## Data processing
+
+```{r}
+setwd("C:/Users/achand2/Documents/MIDS/Courses/w203_Stats/Lab3")
+library(car)
+
+# Read the csv file
+crime_data_raw = read.csv("crime_v2.csv")
+
+# Print out summary of the data read
+#summary(crime_data_raw)
+#str(crime_data_raw)
+```
+There appears to be 6 rows of NA's across all variables. We also notice that 'prbconv' is a factor while the rest of the
+variables are numeric. 
+
+```{r}
+# Remove NA rows
+crime_data = na.omit(crime_data_raw)
+# Print out all column names
+#colnames(crime_data)
+
+# convert factor to numeric for variable prbconv
+crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
+```
+There are a total of 91 observations across 25 different variables. We will now explore each of the variables collected in the data
+
+County and Year variables just represent the different counties and the year the data was collected. As such these don't require further analysis.
+
+## Individual Variable Analysis
+
+### Crimes committed per person
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$crmrte, main = "Crimes committed per person", 
+     xlab="Crime Rate")
+hist(log(crime_data$crmrte), main = "Crimes committed per person", 
+     xlab="Log of Crime Rate")
+```
+The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed. As a result, for out modeling, we will stick with using the log of the crime rate from here on.
+
+### Probability of arrest
+```{r}
+hist(crime_data$prbarr, main = "Histogram of Probability of arrest", 
+     xlab="arrest probability")
+summary(crime_data$prbarr)
+```
+The plot looks fairly normal with some values showing above 1.0 which seems odd for a probability statistic. We likely have to pay attention to this variable in our analysis later. 
+
+### Probability of conviction
+```{r}
+hist(crime_data$prbconv, main="Histogram of Probability of convictions", 
+     xlab="conviction probability")
+summary(crime_data$prbconv)
+```
+The histogram plot doesn't look normal with more positive/left skew observed in the data. Moreover, plenty of values appear above 1 which again seems odd considering this is a probability that is supposed to be between 0 and 1. 
+
+Instead of excluding all values above 1, we likely have to assume these higher values denote high changes of getting convicted in our analysis.
+
+Taking the log transformation of this statistics doesn't make much sense either. 
+
+### Probability of prison sentence
+```{r}
+hist(crime_data$prbpris, main = "Histogram of Probability of prison sentence", 
+     xlab="prison sentence prob")
+```
+This histogram plot looks fairly normal and we don't observe any weird values. 
+
+### Average sentence days
+```{r}
+hist(crime_data$avgsen, main="Histogram of Average sentence in days", 
+     xlab="avg sentence")
+```
+The average sentence in days looks slightly positive skewed. There appears to be an outlier with some values appearing greater than 20 days. 
+
+### Police per Capita
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$polpc, main="Histogram of Police per capita", 
+     xlab="police per capita")
+hist(log(crime_data$polpc), main="Histogram of Police per capita", breaks=20,
+     xlab="Log of police per capita")
+summary(crime_data$polpc)
+```
+The histogram of police per capita appears to be postively skewed with some outlier on the far right closer to 0.01. Taking the log of the metric makes the plot look more normal. The log transformation will likely be useful to examine the effects of police presence on crime.
+
+### People per sq. mile
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$density, main="Histogram of density", 
+     xlab="density")
+hist(log(crime_data$density), main="Histogram of density", breaks=20,
+     xlab="log density")
+summary(crime_data$density)
+```
+The histogram of density shows lot of positive skew. The log transformation shows a more promising normal distribution whereas it is skewed more towards the right due to a min value that seems out of place. We will continue to use the log value but pay heed to the min value for anamolies.
+
+
+### Tax revenue per capita
+```{r}
+summary(crime_data$taxpc)
+par(mfrow=c(1,2))
+hist(crime_data$taxpc, main="Histogram of tax revenue per capita", breaks=20,
+     xlab="tax review per capita")
+hist(log(crime_data$taxpc), main="Histogram of tax revenue per capita", 
+     breaks=20,
+     xlab="Log of tax review per capita")
+```
+The tax revenue summary indicates a max value of 120, which might be a outlier assuming max of 100. The histogram is sligtly positively skewed on the left and the log transformation appears to be normal yet still retaining small skew towards the left
+
+### Urban population
+```{r}
+sum(crime_data$urban == 1)
+boxplot(crime_data$crmrte ~ crime_data$urban, ylab="Crime Rate",
+        main="Crime Rate in rural vs. urban county",
+        names=c("Rural", "Urban"))
+
+```
+There appears to be only 8 counties that are classified as urban in NC
+
+When we compare the crime rates between rural and urban centers, it appears about 3 times higher in urban counties than rural counties. However there are only 8 data points for urban counties, so this might not be enough to devote serious consideration into this variable.
+
+```{r}
+boxplot(crime_data$density ~ crime_data$urban, ylab="Density",
+        main="Density in Rural vs. Urban counties", 
+        names=(c("Rural", "Urban")))
+```
+As expected the density of population is higher in urband couties as compared to rural counties.
+
+### Percent minority
+```{r}
+hist(crime_data$pctmin80, main="Histogram of percent minority", breaks=20,
+     xlab="percent of minority")
+```
+There doesn't seem to be anything odd about the percent of minority as calculated in 1980. Data and plot seems as expected. 
+### Wage distribution
+```{r}
+par(mfrow=(c(3,3)))
+hist(crime_data$wcon, breaks=20,
+     main="Hist of wcon",ylab="Frequency", xlab="wagecon")
+hist(crime_data$wtuc, breaks=20,
+     main="Hist of wtuc",xlab="wagetuc", ylab="")
+hist(crime_data$wloc, breaks=20,
+     main="Hist of wloc",xlab="wageloc", ylab="")
+hist(crime_data$wtrd, breaks=20,
+     main="Hist of wtrd",ylab="Frequency", xlab="wagetrd")
+hist(crime_data$wfir, breaks=20,
+     main="Hist of wfir",xlab="wagefir", ylab="")
+hist(crime_data$wser, breaks=20,
+     main="Hist of wser",xlab="wageser", ylab="")
+hist(crime_data$wmfg, breaks=20,
+     main="Hist of wmfg",ylab="Frequency", xlab="wagemfg")
+hist(crime_data$wfed, breaks=20,
+     main="Hist of wfed",xlab="wagefed", ylab="")
+hist(crime_data$wsta, breaks=20,
+     main="Hist of wsta",xlab="wagesta", ylab="")
+
+```
+Most of the wage variables conform to normal distributions.
+```{r}
+summary(crime_data$wser)
+```
+Wage in service industry does seem to have one strange outlier that is causing some skewness in the plot
+We might need to remove or exclude this data point so as to not affect our model
+
+
+### Offense Mix & Percent of young males
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$mix, main="Histogram of offense mix",
+     xlab="offense mix, f2f/other")
+hist(log(crime_data$mix), main="Histogram of offense mix",
+     xlab="Log of offense mix")
+```
+Log transformation of offense mix is more normal while the percent of young males has a heavy left positive skew regardless of the log transformation
+
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$pctymle, main="Histogram of percent of young males",
+     xlab="pct young males")
+hist(log(crime_data$pctymle), main="Histogram of percent of young males",
+     xlab="Log of pct young males")
+```
+
+## Data Transformation
+Based on the univariate analysis performed above, we can opt to take the following transformations of the variables to make better analysis and judgement calls:
+
+Log transformation of the Crime Rate, Police per Capita, Density per sq. mile, Tax revenue per capita
+And finally scaling the percent (percent young male) and probabilities (arrest, conviction and prison sentence) to be between 0-100
+```{r}
+crime_data$log_crmrte = log(crime_data$crmrte)
+crime_data$log_density = log(crime_data$density)
+crime_data$log_polpc = log(crime_data$polpc)
+crime_data$log_taxpc = log(crime_data$taxpc)
+crime_data$adj_pctymle = crime_data$pctymle *100
+crime_data$adj_prbarr = crime_data$prbarr *100
+crime_data$adj_prbconv = crime_data$prbconv *100
+crime_data$adj_prbpris = crime_data$prbpris *100
+
+```
+
+## Bi-variate Analysis
+
+The correlation plot between the different variables is as follows:
+```{r}
+#install.packages("corrplot", dependencies = T)
+library(corrplot)
+corrplot(cor(crime_data[,
+                        c("log_crmrte", "adj_prbarr", "adj_prbconv", "adj_prbpris", "avgsen", "log_polpc",
+                          "log_density", "log_taxpc", "pctmin80", "mix", "adj_pctymle")]), type = "upper")
+corrplot(cor(crime_data[,
+                        c("log_crmrte", "wcon", "wtuc", "wtrd", "wfir", "wser", "wmfg", "wfed", "wsta", 
+                          "wloc")]), type = "upper")
+```
+We can see that there is a high positive correlation between:
+
+- log of crime rate vs. log of policy per capita, log of tax revenue per capita, log of density and percent young male
+
+- log of crime rate vs. most of the wage variables
+
+
+And there is a high negative correlation between:
+
+- log of crime rate vs. probability of arrests and conviction
+
+
+The positive correlation observed makes sense for the following reasons:
+
+1) More densely populated regions tends to observe more crimes
+2) More wealthy areas (more wages and taxes) tend to have more crimes
+3) More crimes leads to more police presence in a particular county to monitor and reduce crime rate
+
+The negative correlations can be further observed using:
+```{r}
+par(mfrow=c(1,2))
+plot(crime_data$adj_prbarr, crime_data$log_crmrte,
+     main="Probability of arrest", ylab="Log Crime rate", xlab="Prob on arrest")
+abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbarr))
+plot(crime_data$adj_prbconv, crime_data$log_crmrte,
+     main="Probability of conviction vs. crime rate", ylab="Log Crime rate", xlab="Prob on conv")
+abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbconv))
+```
+As seen above, as the probability of arrests and conviction go down, there are more criminals on the loose which leads to higher crime rates observed
+
+# 3. Model Specification and Assumptions
+
+In our earlier analysis, we observed some key relationships between crime rate and other variables presented. Some of these variables had high positive correlation to crime rate while some others exhibited strong negative correlation.
+
+For our first simple model, we will choose a subset of these variables that we believe are most important determinants of crime rate.
+
+$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2 (Conviction) + \beta_3 (Arrest) + \beta_4 (YoungMale) + u$$
+It is common knowledge that areas with higher density have more crime. Therefore we include that factor in our model. Similarly we hypothesized that high probability of arrests and conviction act as deterrents to crime. We also observed that having a high percent of young males in the population leads to higher crime rate, so we round off our model with that factored in as well.
+
+
+```{r}
+
+```
