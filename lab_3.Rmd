@@ -371,31 +371,55 @@ summary(m)
 
 The default model has an $R^2$ value of 0.85.
 
-We see that the following variables are significant (p > 0.1):
+We see that the following variables are significant (p < 0.1):
 
-* county
-* prbconv
-* prbpris
-* west
-* urban
-* wcon
-* wtuc
-* wtrd
-* wmfg
-* wfed
-* wloc
-* mix
+* prbarr
+* avgsen
+* polpc
+* density
+* central
+* pctmin80
+* wser
+* wsta
+* pctymle
 
 Let us try to build a newer model with the above (fewer) variables.
 
 ```{r}
-m <- lm(crime$crmrte ~ county + prbconv + prbpris + 
-          west + urban + wcon + wtuc + wtrd + wmfg +
-          wfed + wloc + mix, crime)
+m <- lm(crime$crmrte ~ prbarr + avgsen + polpc + 
+          density + central + pctmin80 + wser + wsta + pctymle,
+        crime)
+cor(crime$pctymle, crime$crmrte)
 summary(m)
 ```
 
-Our $R^2$ dropped to 0.5.
+Our $R^2$ is still 0.8, which is quite significant.
+
+Let us analyze the independent variables for causality.
+
+* prbarr: it is plausible that we have more arrests in areas with high crime (effect, not cause)
+* avgsen: Same reasoning can hold for average sentence: high crime rate can result in higher average sentences
+* polpc: It is possible that high number of police per capita is a result of high crime rate, not a cause
+* density: Density sounds like a possible cause: higher population density means higher opportunity for anonymity and lower probability of detection
+* central: Central NC has higher crime rate but this could be due to omitted variables such as higher density or urban population
+* pctmin80: Higher percentage of minorities can indicate social tension and anonymity, causing higher crime rate.
+* wser, wsta: Wages in services and state is not causal: it is probably due to omitted variables.  These wages are probably higher in urban areas due to higher minimum wage.
+* pctymle: % young male is probably causal.  Young men are known to engage in risky, aggressive behavior that correlates well with crime rate.
+
+So our causal variables can be:
+* density
+* pctmin80
+* pctymle
+
+Let us fit the model:
+
+```{r}
+m <- lm(crime$crmrte ~ density + pctmin80 + pctymle,
+        crime)
+summary(m)
+```
+
+The $R^2$ is still 0.6, which is quite high for only three predictors.
 
 Possible policy suggestions:
 
@@ -408,3 +432,4 @@ Possible policy suggestions:
 * Are low wages driving crime?
 * Is there hate crime in the area ("mix"), and is it correlated with % minority?
 * How is crime connected to % young male?
+
