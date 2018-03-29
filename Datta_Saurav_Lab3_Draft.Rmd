@@ -641,6 +641,17 @@ vif(logcrmrte.lm3)
 ```
 There is no multicollinearity since none of the vif values are more than 10.
 
+##### Comparing the models
+
+```{r}
+
+summary(logcrmrte.lm1)$r.squared 
+summary(logcrmrte.lm2)$r.squared 
+summary(logcrmrte.lm3)$r.squared 
+
+```
+
+Based on the r-squared output logcrmrte.lm1 or logcrmrte.lm3 is preferred.
 
 ```{r}
 ## The Akaike information criterion (AIC) is an estimator of the relative quality of statistical models for a given set of data. Given a collection of models for the data, AIC estimates the quality of each model, relative to each of the other models. Thus, AIC provides a means for model selection.
@@ -659,4 +670,7 @@ stargazer(logcrmrte.lm1, logcrmrte.lm2,logcrmrte.lm3, type = "latex",
           omit.table.layout = "n") # Omit more output related to errors
 
 ```
+
+
+
 
