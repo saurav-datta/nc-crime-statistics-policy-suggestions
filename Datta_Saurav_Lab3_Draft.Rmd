@@ -527,7 +527,7 @@ plot(logcrmrte.lm1, which =1)
 
 ```
 
-The regression lines is close to 0 residual. Thiis indicates there is a linear relationship among logcrmrte with  logpolpc + log1pdensity.
+The regression lines is close to 0 residual. This indicates there is a linear relationship among logcrmrte with  logpolpc + log1pdensity.
 
 
 ```{r}
@@ -535,7 +535,7 @@ plot(logcrmrte.lm1, which =2)
 
 ```
 
-The Normal QQ plot is roughly on a stright line. This indicates that our data has been sourced from a normal distribution 
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
 
 ```{r}
 plot(logcrmrte.lm1, which =4)
@@ -579,8 +579,8 @@ plot(logcrmrte.lm2,which=c(1,2,4))
 par(mfrow =c(1,1))
 ```
 
-The regression lines is close to 0 residual. Thiis indicates there is a linear relationship among logcrmrte with  wcon.
-The Normal QQ plot is roughly on a stright line. This indicates that our data has been sourced from a normal distribution 
+The regression lines is close to 0 residual. This indicates there is a linear relationship among logcrmrte with  wcon.
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
 None of the points have Cook's distance greater than 1. 
 
 ##### Model 2: Wage variable wmfg
@@ -603,7 +603,7 @@ par(mfrow =c(1,1))
 ```
 
 The regression lines is varying from residual 0. This indicates there is no linear relationship between logcrmrte and wmfg.
-The Normal QQ plot is roughly on a stright line. This indicates that our data has been sourced from a normal distribution 
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
 None of the points have Cook's distance greater than 1.
 
 
@@ -620,7 +620,7 @@ plot(logcrmrte.lm3, which =1)
 
 ```
 
-The regression lines is close to 0 residual. Thiis indicates there is a linear relationship between logcrmrte and (logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc)
+The regression lines is close to 0 residual. This indicates there is a linear relationship between logcrmrte and (logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc)
 
 
 ```{r}
@@ -628,7 +628,7 @@ plot(logcrmrte.lm3, which =2)
 
 ```
 
-The Normal QQ plot is roughly on a stright line. This indicates that our data has been sourced from a normal distribution 
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
 
 ```{r}
 plot(logcrmrte.lm3, which =4)
