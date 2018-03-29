@@ -12,24 +12,35 @@ knitr::opts_chunk$set(echo = TRUE)
 # 1. Introduction
 
 Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime
-statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand the
-determinants of crime and to generate policy suggestions that are applicable to local government.
+statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand
+the determinants of crime and to generate policy suggestions that are applicable to local government.
 
-The data provided consists of 25 variables and 91 different observations collected in a given year. For the analysis made in this research, we will assume that the data collected from different counties in NC were randomly sampled.
+The data provided consists of 25 variables and 91 different observations collected in a given year. Moreover the dataset
+obtained is a single cross-section of data collected from variety of different sources. For the analysis made
+in this research, we will assume that the data collected from different counties in NC were randomly sampled.
 
+Our primary analysis of data will include ordinary least squares regressions to make casual estimates and we will clearly 
+explain how omitted variabled may affect our conclusions. We begin our research by conducting exploratory analysis of the
+dataset to gain a better understanding of the variables.
 
 # 2. Exploratory Analysis
 
 ## Data processing
 
-```{r}
-setwd("C:/Users/achand2/Documents/MIDS/Courses/w203_Stats/Lab3")
+```{r, include= FALSE}
 library(car)
+library(corrplot)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(dplyr)
+```
 
+```{r}
 # Read the csv file
 crime_data_raw = read.csv("crime_v2.csv")
 
-# Print out summary of the data read
+# Print out summary of the data read (excluded from the report)
 #summary(crime_data_raw)
 #str(crime_data_raw)
 ```
@@ -39,15 +50,26 @@ variables are numeric.
 ```{r}
 # Remove NA rows
 crime_data = na.omit(crime_data_raw)
-# Print out all column names
+
+# Print out all column names (excluded from the report)
 #colnames(crime_data)
 
 # convert factor to numeric for variable prbconv
 crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
 ```
-There are a total of 91 observations across 25 different variables. We will now explore each of the variables collected in the data
+There are a total of 91 observations across 25 different variables. We will now explore each of the variables collected in
+the data
 
-County and Year variables just represent the different counties and the year the data was collected. As such these don't require further analysis.
+County and Year variables just represent the different counties and the year the data was collected. As such these don't
+require further analysis.
+
+```{r}
+crime_data %>% group_by(county) %>% filter(n()>1)
+crime_data = distinct(crime_data)
+```
+
+We also noticed that one of the rows was duplicated in the dataset. As this could potentially affect our regression
+analysis, we decided to remove the duplicated entry.
 
 ## Individual Variable Analysis
 
@@ -59,7 +81,9 @@ hist(crime_data$crmrte, main = "Crimes committed per person",
 hist(log(crime_data$crmrte), main = "Crimes committed per person", 
      xlab="Log of Crime Rate")
 ```
-The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed. As a result, for out modeling, we will stick with using the log of the crime rate from here on.
+The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively
+skewed to the left. We can take the log transformation which makes the variable appear more normally distributed. As a
+result, for our modeling, we will stick with using the log of the crime rate from here on.
 
 ### Probability of arrest
 ```{r}
@@ -67,7 +91,8 @@ hist(crime_data$prbarr, main = "Histogram of Probability of arrest",
      xlab="arrest probability")
 summary(crime_data$prbarr)
 ```
-The plot looks fairly normal with some values showing above 1.0 which seems odd for a probability statistic. We likely have to pay attention to this variable in our analysis later. 
+The plot looks fairly normal with some values showing above 1.0 which seems odd for a probability statistic. We likely have
+to pay attention to this variable in our analysis later. 
 
 ### Probability of conviction
 ```{r}
@@ -75,9 +100,14 @@ hist(crime_data$prbconv, main="Histogram of Probability of convictions",
      xlab="conviction probability")
 summary(crime_data$prbconv)
 ```
-The histogram plot doesn't look normal with more positive/left skew observed in the data. Moreover, plenty of values appear above 1 which again seems odd considering this is a probability that is supposed to be between 0 and 1. 
+The histogram plot doesn't look normal with more positive/left skew observed in the data. Moreover, plenty of values appear
+above 1 which again seems odd considering this is a probability that is supposed to be between 0 and 1. 
 
-Instead of excluding all values above 1, we likely have to assume these higher values denote high changes of getting convicted in our analysis.
+Instead of excluding all values above 1, we likely have to assume these higher values denote high changes of getting
+convicted in our analysis. From the definition of these terms provided, probability of arrest is proxied by the ratio of
+of the arrests to offenses. And probability of conviction is proxied by ration of convictions to arrests, probability of 
+prison sentence is proxied by convictions resulting in prison to total convictions. Since these are all "ratios" and not
+true probabilities, we decided to not exclude and remove these values from the dataset.
 
 Taking the log transformation of this statistics doesn't make much sense either. 
 
@@ -93,7 +123,8 @@ This histogram plot looks fairly normal and we don't observe any weird values.
 hist(crime_data$avgsen, main="Histogram of Average sentence in days", 
      xlab="avg sentence")
 ```
-The average sentence in days looks slightly positive skewed. There appears to be an outlier with some values appearing greater than 20 days. 
+The average sentence in days looks slightly positive skewed. There appears to be an outlier with some values appearing
+greater than 20 days. 
 
 ### Police per Capita
 ```{r}
@@ -104,7 +135,9 @@ hist(log(crime_data$polpc), main="Histogram of Police per capita", breaks=20,
      xlab="Log of police per capita")
 summary(crime_data$polpc)
 ```
-The histogram of police per capita appears to be postively skewed with some outlier on the far right closer to 0.01. Taking the log of the metric makes the plot look more normal. The log transformation will likely be useful to examine the effects of police presence on crime.
+The histogram of police per capita appears to be postively skewed with some outlier on the far right closer to 0.01. Taking
+the log of the metric makes the plot look more normal. The log transformation will likely be useful to examine the effects
+of police presence on crime.
 
 ### People per sq. mile
 ```{r}
@@ -114,8 +147,14 @@ hist(crime_data$density, main="Histogram of density",
 hist(log(crime_data$density), main="Histogram of density", breaks=20,
      xlab="log density")
 summary(crime_data$density)
+crime_data = filter(crime_data, density>0.01)
 ```
-The histogram of density shows lot of positive skew. The log transformation shows a more promising normal distribution whereas it is skewed more towards the right due to a min value that seems out of place. We will continue to use the log value but pay heed to the min value for anamolies.
+The histogram of density shows lot of positive skew. The log transformation shows a more promising normal distribution
+whereas it is skewed more towards the right due to a min value that seems out of place. We will continue to use the log
+value but pay heed to the min value for anamolies.
+
+We also observe one extreme outlier value of 0.000020342. This seems like an unlikely value for people per square mile
+and we are thus removing it from consideration.
 
 
 ### Tax revenue per capita
@@ -128,7 +167,9 @@ hist(log(crime_data$taxpc), main="Histogram of tax revenue per capita",
      breaks=20,
      xlab="Log of tax review per capita")
 ```
-The tax revenue summary indicates a max value of 120, which might be a outlier assuming max of 100. The histogram is sligtly positively skewed on the left and the log transformation appears to be normal yet still retaining small skew towards the left
+The tax revenue summary indicates a max value of 120, which might be a outlier assuming max of 100. The histogram is
+sligtly positively skewed on the left and the log transformation appears to be normal yet still retaining small skew
+towards the left
 
 ### Urban population
 ```{r}
@@ -181,9 +222,10 @@ hist(crime_data$wsta, breaks=20,
 Most of the wage variables conform to normal distributions.
 ```{r}
 summary(crime_data$wser)
+crime_data= filter(crime_data, wser<2177)
 ```
-Wage in service industry does seem to have one strange outlier that is causing some skewness in the plot
-We might need to remove or exclude this data point so as to not affect our model
+Wage in service industry does seem to have one strange outlier that is causing some skewness in the plot.
+We believe this is likely an error and are thus removing it from consideration.
 
 
 ### Offense Mix & Percent of young males
@@ -198,7 +240,7 @@ Log transformation of offense mix is more normal while the percent of young male
 
 ```{r}
 par(mfrow=c(1,2))
-hist(crime_data$pctymle, main="Histogram of percent of young males",
+hist(crime_data$pctymle, main="Hist of percent of young males",
      xlab="pct young males")
 hist(log(crime_data$pctymle), main="Histogram of percent of young males",
      xlab="Log of pct young males")
@@ -221,18 +263,22 @@ crime_data$adj_prbpris = crime_data$prbpris *100
 
 ```
 
+A final sumary table of our dataset with all transformation and data cleansing performed is displayed below:
+```{r mylatextable, results = "asis"}
+stargazer(crime_data, title = "Descriptive Statistics", digits=1)
+```
+
 ## Bi-variate Analysis
 
 The correlation plot between the different variables is as follows:
 ```{r}
-#install.packages("corrplot", dependencies = T)
-library(corrplot)
 corrplot(cor(crime_data[,
-                        c("log_crmrte", "adj_prbarr", "adj_prbconv", "adj_prbpris", "avgsen", "log_polpc",
-                          "log_density", "log_taxpc", "pctmin80", "mix", "adj_pctymle")]), type = "upper")
+                        c("log_crmrte", "adj_prbarr", "adj_prbconv", "adj_prbpris", "avgsen", 
+                          "log_polpc", "log_density", "log_taxpc", "pctmin80", "mix", 
+                          "adj_pctymle")]), type = "upper")
 corrplot(cor(crime_data[,
-                        c("log_crmrte", "wcon", "wtuc", "wtrd", "wfir", "wser", "wmfg", "wfed", "wsta", 
-                          "wloc")]), type = "upper")
+                        c("log_crmrte", "wcon", "wtuc", "wtrd", "wfir", "wser", "wmfg", "wfed", 
+                          "wsta", "wloc")]), type = "upper")
 ```
 We can see that there is a high positive correlation between:
 
@@ -259,10 +305,15 @@ plot(crime_data$adj_prbarr, crime_data$log_crmrte,
      main="Probability of arrest", ylab="Log Crime rate", xlab="Prob on arrest")
 abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbarr))
 plot(crime_data$adj_prbconv, crime_data$log_crmrte,
-     main="Probability of conviction vs. crime rate", ylab="Log Crime rate", xlab="Prob on conv")
+     main="Probability of conviction vs. crime rate", ylab="Log Crime rate", 
+     xlab="Prob on conv")
 abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbconv))
 ```
 As seen above, as the probability of arrests and conviction go down, there are more criminals on the loose which leads to higher crime rates observed
+
+### TODO: Talk about other possible correlations here?
+
+### TODO: Discuss other interesting bi-variate analysis?
 
 # 3. Model Specification and Assumptions
 
@@ -270,8 +321,59 @@ In our earlier analysis, we observed some key relationships between crime rate a
 
 For our first simple model, we will choose a subset of these variables that we believe are most important determinants of crime rate.
 
-$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2 (Conviction) + \beta_3 (Arrest) + \beta_4 (YoungMale) + u$$
-It is common knowledge that areas with higher density have more crime. Therefore we include that factor in our model. Similarly we hypothesized that high probability of arrests and conviction act as deterrents to crime. We also observed that having a high percent of young males in the population leads to higher crime rate, so we round off our model with that factored in as well.
+## Model 1
+$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2(YoungMale) + \beta_3(Minority) + u$$
+It is common knowledge that areas with higher density have more crime. Therefore we include that factor in our model.
+Similarly we hypothesized that crime rate is high among minority and young male population, so we round off our model with
+that factored in as well.
+
+```{r}
+model1 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80, data=crime_data)
+model1$coefficients
+par(mfrow=c(2,2))
+plot(model1)
+AIC(model1)
+summary(model1)$r.squared
+summary(model1)$adj.r.squared
+```
+
+## Model 2
+high probability of arrests and conviction act as deterrents to crime.
+
+$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2 (YoungMale) + \beta_3(Minority) + \beta_4(Conviction) + \beta_5 (Arrest) + \beta_6 (Tax) + u$$
+```{r}
+model2 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+
+            adj_prbconv+taxpc, data=crime_data)
+model2$coefficients
+par(mfrow=c(2,2))
+plot(model2)
+AIC(model2)
+summary(model2)$r.squared
+```
+
+## Model 3
+everything
+
+```{r}
+model3 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+adj_prbconv+
+              taxpc+log_polpc, data=crime_data)
+model3$coefficients
+par(mfrow=c(2,2))
+plot(model3)
+AIC(model3)
+summary(model3)$r.squared
+```
+
+```{r results = "asis"}
+stargazer(model1, model2, model3)
+```
+# 5. Discussion of omitted variables (Identify what you think are the 5-10 most important omitted variables that bias results you care about.)
+
+Education
+
+Unemployment
+
+Poverty
 
 
 ```{r}
