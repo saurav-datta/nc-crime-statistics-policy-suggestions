@@ -7,14 +7,10 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=TRUE, tidy.opts=list(width.cutoff=80), tidy=TRUE)
-```
-
-```{r setup, echo=FALSE}
-library(sqldf)
-library(ggplot2)
-library(gridExtra)
-library(stargazer)
-library(car)
+#library(ggplot2)
+#library(gridExtra)
+#library(stargazer)
+#library(car)
 library(dplyr)
 ```
 
@@ -62,10 +58,32 @@ colnames(crime0)
 # levels(crime0$prbconv)
 crime0$prbconv = as.numeric(levels(crime0$prbconv))[crime0$prbconv]
 
-# FIXME: is it better to replace with NA instead of removing the data?
 crime = crime0 %>% dplyr::select(-year)
+
+# Convert some numerics into factors
+crime$west = as.factor(crime$west)
+crime$central = as.factor(crime$central)
+crime$urban = as.factor(crime$urban)
+#crime$county = as.factor(crime$county)
+
 # Commented for conciseness
 # structure(crime)
+```
+
+Let us look at outliers and influential records.
+
+```{r}
+m = lm(crmrte ~ ., data=crime)
+par(mfrow=c(2,2))
+plot(m)
+summary(m)
+```
+
+Let us eliminate observations 25 and 84: their Cook's distances are very large.  In a real-world scenario, this would need further investigation.
+
+```{r}
+crime %>% slice(c(25, 84)) %>% dplyr::select(everything())
+crime <- crime %>% slice(-c(25, 84))
 ```
 
 Our dependent variable is going to be $crmrte$.  We want to come up with a model that can predict crime rate.
@@ -112,11 +130,6 @@ Interesting causal questions:
 We will now define some utility functions to aid our EDA.
 
 ```{r}
-f_check_null <- function(in_field_name) {
-  sql <- sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM crime WHERE (%s IS \"NA\" or %s IS NULL)", in_field_name, in_field_name)
-  sqldf(sql)
-}
-
 f_plot_one <- function(in_db_field_name,in_main_title) {
   title_log <- paste("log of",in_main_title, sep = " ")
   par(mfrow=c(2,2))
@@ -163,7 +176,6 @@ abline(m)
 Crime rate has a right skew with many outliers on the higher end.  We can use a log function to transform the distribution to be closer to normal.
 
 ```{r}
-#f_check_null("crmrte")
 f_plot_one(crime$crmrte,"crime rate")
 # We can take logarithm to make the data more normally distributed
 crime$logcrmrte=log(crime$crmrte)
@@ -177,44 +189,16 @@ f_plot_one(crime$prbarr,"probability of arrest")
 crime$logprbarr=log(crime$prbarr)
 ```
 
-Probability of arrest has one large outlier, with a value above 1.0.  This significantly affects the distribution.
-
-```{r}
-crime %>% filter(prbarr > 1.0) %>% dplyr::select(everything())
-```
-
-Let us remove this data point and replot.  In a real-world scenario, this would need further investigation.
-
-```{r}
-crime <- crime %>% filter(prbarr <= 1.0)
-f_plot_one(crime$prbarr,"probability of arrest")
-```
-
-We no longer need any transformation and we can use the data as-is.
-
 ```{r}
 f_plot_one(crime$prbconv,"probability of conviction")
 crime$logprbconv=log(crime$prbconv)
 ```
 
-Probability of conviction has a few outliers, one with a value above 2.0.  This significantly affects the distribution.
-
-```{r}
-crime %>% filter(prbconv > 2.0) %>% dplyr::select(everything())
-```
-
-Let us remove this data point and replot.  In a real-world scenario, this would need further investigation.
-
-```{r}
-crime <- crime %>% filter(prbconv <= 1.0)
-f_plot_one(crime$prbconv,"probability of conviction")
-```
-
-We no longer need any transformation and we can use the data as-is.
+Probability of prison has a bit of right skew, so we'll use log1p.
 
 ```{r}
 f_plot_one(crime$prbpris,"probability of prison")
-crime$logprbpris=log1p(crime$prbpris)
+#crime$logprbpris=log1p(crime$prbpris)
 ```
 
 ### Average sentence
@@ -223,10 +207,23 @@ crime$logprbpris=log1p(crime$prbpris)
 f_plot_one(crime$avgsen,"avg. sentence, days")
 ```
 
+We can deal with the positive skew by taking square root.
+```{r}
+hist(sqrt(crime$avgsen))
+crime$sravgsen <- sqrt(crime$avgsen)
+```
+
 ### Police per capita
 
 ```{r}
 f_plot_one(crime$polpc,"police per capita")
+```
+
+We will take logarithm to deal with positive skew.
+
+```{r}
+hist(log(crime$polpc))
+crime$logpolpc <- log(crime$polpc)
 ```
 
 ### Density
@@ -234,6 +231,8 @@ f_plot_one(crime$polpc,"police per capita")
 ```{r}
 f_plot_one(crime$density,"density")
 ```
+
+Density has positive skew too.
 
 We can normalize density by taking a cube root:
 
@@ -246,21 +245,21 @@ crime$crdensity <- (crime$density)^(1/3)
 
 ```{r}
 f_plot_one(crime$taxpc,"tax revenue per capita")
-hist(log1p(crime$taxpc))
-crime$logtaxpc <- log1p(crime$taxpc)
+hist((crime$taxpc)^(1/3))
+crime$crtaxpc <- (crime$taxpc)^(1/3)
 ```
 
 Tax revenue has one outlier beyond 120:
 
 ```{r}
-crime %>% filter(taxpc > 100) %>% dplyr::select(everything())
+#crime %>% filter(taxpc > 100) %>% dplyr::select(everything())
 ```
 
 Let us remove it and replot.
 
 ```{r}
 # crime <- crime %>% filter(taxpc <= 100)
-f_plot_one(crime$taxpc,"tax revenue per capita")
+#f_plot_one(crime$taxpc,"tax revenue per capita")
 ```
 
 ### Minority percentage
@@ -269,7 +268,7 @@ f_plot_one(crime$taxpc,"tax revenue per capita")
 f_plot_one(crime$pctmin80,"minority pc")
 ```
 
-The data shows considerable skew.
+The data is nicely distributed with a few outliers in the upper range.
 
 We can transform as follows:
 
@@ -284,7 +283,7 @@ crime$crpctmin80 = crime$pctmin80 ^ (1/3)
 f_plot_one(crime$pctymle,"minority pc")
 ```
 
-The data shows considerable skew.  Let us apply a polynomial transform:
+The data shows considerable skew.  Let us apply cube root:
 
 ```{r}
 hist(crime$pctymle^(1/3))
@@ -294,35 +293,25 @@ crime$crpctymle <- crime$pctymle^(1/3)
 ### Wages
 
 ```{r}
-wages = c("wcon", "wfed", "wfir", "wloc", "wmfg", "wser", "wsta", "wtrd", "wtuc")
-par(mfrow = c(3, 3))
-for (col in wages) {
-    hist(crime[,col], main=title(col))
-}
+wages = c(crime$wcon, crime$wfed, crime$wfir, crime$wloc, crime$wmfg, crime$wser, crime$wsta, crime$wtrd, crime$wtuc)
+f_plot_one(crime$wcon, "construction wages")
+f_plot_one(crime$wfed, "federal wages")
+f_plot_one(crime$wfir, "finance and investment wages")
+f_plot_one(crime$wloc, "local gov emp wages")
+f_plot_one(crime$wmfg, "mfg wages")
+f_plot_one(crime$wser, "service ind wages")
+f_plot_one(crime$wsta, "state gov emp wages")
+f_plot_one(crime$wtrd, "trade emp wages")
+f_plot_one(crime$wtuc, "trans comm wages")
 ```
 
-```{r}
-wages = c("wcon", "wfed", "wfir", "wloc", "wmfg", "wser", "wsta", "wtrd", "wtuc")
-par(mfrow = c(3, 3))
-for (col in wages) {
-    boxplot(crime[,col], main=col)
-}
-```
 Most of the wages are already normally distributed.  The following are exceptions:
 
 ```{r}
-f_plot_one(crime$wtrd,"Wages: trading")
 crime$logwtrd <- log(crime$wtrd)
-```
-
-```{r}
-f_plot_one(crime$wfir,"Wages: fir")
-crime$logwfir <- log(crime$wfir)
-```
-
-```{r}
-f_plot_one(crime$wfir,"Wages: mfg")
+#crime$logwfir <- log(crime$wfir)
 crime$logwmfg <- log(crime$wmfg)
+#crime$crwser <- (crime$wser)^(1/3)
 ```
 
 ### Mix
@@ -348,61 +337,46 @@ From the scatterplot, most of the wages have normal distribution.
 Let us fit an initial model.
 
 ```{r}
-m = lm(logcrmrte ~ prbarr + prbconv + prbpris + avgsen + polpc + crdensity + logtaxpc + crpctmin80 + crpctymle + logmix + wcon + wfed + logwfir + wloc + logwmfg + wser + wsta + logwtrd + wtuc, data=crime)
+m = lm(logcrmrte ~ logprbarr + logprbconv + prbpris + sravgsen + logpolpc + crdensity + crtaxpc + crpctmin80 + crpctymle + logmix + wcon + wfed + wfir + wloc + logwmfg + wser + wsta + logwtrd + wtuc, data=crime)
 summary(m)
+par(mfrow=c(2,2))
+plot(m)
 ```
 The initial model shows the following variables as significant:
 
-* Probability of arrest (prbarr)
-* Police per capita (polpc)
+* Probability of arrest, transformed as log (logprbarr)
+* Probability of conviction, transformed as log (logprbconv)
 * Density, transformed as cube root (crdensity)
 * Percent minorities, transformed as cube root (crpctmin80)
 
 ```{r}
-m = lm(logcrmrte ~ prbarr + polpc + crdensity + crpctmin80, data=crime)
+m = lm(logcrmrte ~ logprbarr + logprbconv + crdensity + crpctmin80, data=crime)
 summary(m)
 par(mfrow=c(2,2))
 plot(m)
 ```
 
-This shows adjusted $R^2$ of 0.79, which is quite close to the fit of 0.86 we obtained by fitting all variables.
+This shows adjusted $R^2$ of 0.79, which is quite close to the fit of 0.83 we obtained by fitting all variables.
 
-Cook's distance is high for record #23.  Let us look at it:
-```{r}
-crime %>% slice(23) %>% dplyr::select(everything())
-```
-
-If we consider this to be an outlier and remove it from the dataset, then we will have a modified model.
-
-```{r}
-crime2 <- crime %>% slice(-23)
-m = lm(logcrmrte ~ prbarr + polpc + crdensity + crpctmin80, data=crime2)
-summary(m)
-par(mfrow=c(2,2))
-plot(m)
-```
-
-The model will be:
 $$\log{crmrte} = -5.15 -1.37\ prbarr + 275\ polpc + 0.781\ \sqrt[^3]{density} + 0.294\ \sqrt[^3]{pctmin80}$$
 Next, we can add some more variables as follows:
 
-* crpctymle
-* logfir
+* wfed
+* sravgsen
+* logpolpc
+* wfir
 
 ```{r}
-m = lm(logcrmrte ~ prbarr + polpc + crdensity + crpctmin80 + crpctymle + logwfir, data=crime2)
+m = lm(logcrmrte ~ logprbarr + logprbconv + crdensity + crpctmin80 + wfed + sravgsen + logpolpc + wfir, data=crime)
 summary(m)
 ```
 
 And even more:
 
-* avgsen
-* wfed
-* wser
-* wsta
+* crpctymle
 
 ```{r}
-m = lm(logcrmrte ~ prbarr + polpc + crdensity + crpctmin80 + crpctymle + logwfir + avgsen + wfed + wser + wsta, data=crime2)
+m = lm(logcrmrte ~ logprbarr + logprbconv + crdensity + crpctmin80 + wfed + sravgsen + logpolpc + wfir + crpctymle, data=crime)
 summary(m)
 ```
 
@@ -412,15 +386,17 @@ It is worth checking these variables for collinearity and to look for omitted va
 # Run variance inflation factor
 vif(m)
 # Run principal component analysis
-pca <- prcomp(~ prbarr + polpc + crdensity + crpctmin80 + crpctymle + logwfir + avgsen + wfed + wser + wsta, data=crime2, center = TRUE, scale.=TRUE)
+pca <- prcomp(~ logprbarr + logprbconv + crdensity + 
+    crpctmin80 + wfed + sravgsen + logpolpc + wfir + crpctymle, data=crime, center = TRUE, scale.=TRUE)
 summary(pca)
 plot(pca, type="l")
 ```
 
-Variance inflation factors look OK: there are no values greater than 5.  PCA analysis shows that the first 3-4 components (prbarr, polpc, crdensity, crpctmin80) explain almost all of the variance.  The remaining factors are not very relevant.
+Variance inflation factors look OK: there are no values greater than 5.  PCA analysis shows that the first 4 components explain almost all of the variance.  The remaining factors are not very relevant.
 
 ```{r}
-scatterplotMatrix(~ prbarr + polpc + crdensity + crpctmin80 + crpctymle + logwfir + avgsen + wfed + wser + wsta, data=crime2)
+cor(~ logprbarr + logprbconv + crdensity + 
+    crpctmin80 + wfed + sravgsen + logpolpc + wfir + crpctymle, data=crime)
 ```
 
 # Bivariate EDA
