@@ -1,7 +1,7 @@
 ---
 title: "Lab3 Draft, w203: Statistics for Data Science"
-author: "Avinash Chandrasekaran"
-date: "March 26, 2018"
+author: "Avinash Chandrasekaran, Deepak Nagaraj, Saurav Datta"
+date: "March 31, 2018"
 output: pdf_document
 ---
 
@@ -54,10 +54,6 @@ crime_data = na.omit(crime_data_raw)
 
 # convert factor to numeric for variable prbconv
 crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
-# Convert some numerics into factors
-crime_data$west = as.factor(crime_data$west)
-crime_data$central = as.factor(crime_data$central)
-crime_data$urban = as.factor(crime_data$urban)
 ```
 
 ### Unused variables
@@ -79,6 +75,8 @@ crime_data = distinct(crime_data)
 
 # 3. Exploratory Data Analysis
 
+We will start with an explanatory note on transformations.  Any skew in the original data may cause the residuals not to follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
+
 We will now try to get a sense of each variable in the dataset.
 
 ## Single variable analysis
@@ -92,24 +90,31 @@ There are a total of 90 observations across 23 different variables. We will now 
 ```{r util_fns}
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE) {
+  y = log(crime_data$crmrte)
   print(summary(col))
   par(mfrow=c(2,2))
-  hist(col, main="Histogram")
-  boxplot(col, main="Box plot")
+  if (is.numeric(col)) {
+    hist(col, main="Histogram")
+    boxplot(col, main="Box plot")
+  }
   if (do_log == TRUE) {
     x = log(col)
     hist(x, main="Histogram, log")
   } else {
     x = col
   }
-  print(signif(cor(x, crime_data$crmrte), 3))
-  m = lm(crime_data$crmrte ~ x)
-  plot(x, crime_data$crmrte, main="Cor. with crime rate")
-  abline(m, col="blue")
+  if (is.numeric(col)) {
+    print(signif(cor(x, y), 3))
+  }
+  m = lm(y ~ x)
+  print(summary(m))
+  plot(x, y, main="Cor. with crime rate")
+  if (is.numeric(col))
+    abline(m, col="blue")
   if (plot_model == TRUE) {
     plot(m)
     if (do_log == TRUE) {
-      m = lm(crime_data$crmrte ~ log(col))
+      m = lm(y ~ x)
       plot(m)
     }
   }
@@ -179,15 +184,13 @@ hist(log(crime_data$crmrte), main = "Crime rate",
 
 The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
 
-Any skew in the original data may cause the residuals not to follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
-
 ### Probability of arrest
 
 ```{r}
 f_describe_col(crime_data$prbarr, plot_model=TRUE)
 ```
 
-The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  Nevertheless, we will keep the values for now.
+The plot looks fairly normal; there is only one outlier.
 
 There is fairly negative correlation of -0.37: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent.
 
@@ -219,7 +222,7 @@ Not much.  We will include $log_prbconv$ in our model.
 f_describe_col(crime_data$prbpris)
 ```
 
-This histogram plot looks fairly normal and we don't observe any weird values.  However, correlation is almost nonexistent wrt crime rate.
+This histogram plot looks fairly normal and we don't observe any outliers.  However, correlation is almost nonexistent wrt crime rate.
 
 We will *not* consider this variable in our model.
 
@@ -231,47 +234,58 @@ f_describe_col(crime_data$avgsen, do_log=TRUE)
 
 The average sentence in days looks slightly positive skewed, which we can correct with a log transform.  But correlation is absent with respect to crime rate.  It is interesting because we would expect that longer sentences would deter crime.
 
-Perhaps we can make a policy recommendation to consider reducing sentences over long periods of time, or to be more lenient in pardoning criminals already serving long sentences.
+Perhaps we can use this data to make a policy recommendation to reduce sentences over long periods of time, or to be more lenient in pardoning criminals already serving long sentences.
 
 We will *not* consider this variable in our model.
 
 ### Tax revenue per capita
 
 ```{r}
-f_describe_col(crime_data$taxpc, do_log=TRUE)
-summary(crime_data$taxpc)
-par(mfrow=c(1,2))
-hist(crime_data$taxpc, main="Histogram of tax revenue per capita", breaks=20,
-     xlab="tax review per capita")
-hist(log(crime_data$taxpc), main="Histogram of tax revenue per capita", 
-     breaks=20,
-     xlab="Log of tax review per capita")
+f_describe_col(crime_data$taxpc, do_log=TRUE, plot_model=TRUE)
 ```
 
-The tax revenue summary indicates a max value of 120, which might be a outlier assuming max of 100. The histogram is
-sligtly positively skewed on the left and the log transformation appears to be normal yet still retaining small skew
-towards the left
+Tax revenue also shows positive skew, with one outlier indicating high tax revenue per capita (>100).  It does not show a lot of leverage, however, so we will keep the value.
+
+We also see considerable positive correlation with crime rate.  It may be that tax revenue is a proxy for wealth, and high amount of wealth attracts crime.
+
+We will *not* include this variable in a first model.
 
 ### Urban population
-```{r}
-sum(crime_data$urban == 1)
-boxplot(crime_data$crmrte ~ crime_data$urban, ylab="Crime Rate",
-        main="Crime Rate in rural vs. urban county",
-        names=c("Rural", "Urban"))
-
-```
-There appears to be only 8 counties that are classified as urban in NC
-
-When we compare the crime rates between rural and urban centers, it appears about 3 times higher in urban counties than rural counties. However there are only 8 data points for urban counties, so this might not be enough to devote serious consideration into this variable.
 
 ```{r}
-boxplot(crime_data$density ~ crime_data$urban, ylab="Density",
-        main="Density in Rural vs. Urban counties", 
-        names=(c("Rural", "Urban")))
+print(length(crime_data$urban[crime_data$urban == 1]))
+urban_crime_data = crime_data %>% filter(urban == 1) %>% dplyr::select(-urban)
+rural_crime_data = crime_data %>% filter(urban == 0) %>% dplyr::select(-urban)
+par(mfrow=c(1,2))
+lmts = range(urban_crime_data$crmrte, rural_crime_data$crmrte)
+boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
+boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
 ```
-As expected the density of population is higher in urband couties as compared to rural counties.
+
+It is worth noting that there are only 8 observations classified urban in this dataset.  Median crime rate in urban regions is double that of rural regions.
+
+Let us fit a model and see if our variable is salient.
+
+```{r}
+print(cor(crime_data$urban, log(crime_data$crmrte)))
+m = lm(log(crmrte) ~ factor(urban), data=crime_data)
+print(summary(m))
+```
+
+We do see a strong correlation between observations classified "urban" and crime rate, and the same is reflected by the low p-value in the model summary.
+
+Let us check if there is correlation between "urban" and "density":
+
+```{r}
+cor(crime_data$density, crime_data$urban)
+```
+
+This is quite high, and we run a risk of multicollinearity.
+
+Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
 
 ### Percent minority
+
 ```{r}
 hist(crime_data$pctmin80, main="Histogram of percent minority", breaks=20,
      xlab="percent of minority")
