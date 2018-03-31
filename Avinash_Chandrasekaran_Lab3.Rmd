@@ -79,6 +79,8 @@ crime_data = distinct(crime_data)
 
 # 3. Exploratory Data Analysis
 
+We will now try to get a sense of each variable in the dataset.
+
 ## Single variable analysis
 
 ```{r include=FALSE}
@@ -87,28 +89,42 @@ structure(crime_data)
 
 There are a total of 90 observations across 23 different variables. We will now explore each of the variables collected in the data.
 
-### Crimes committed per person
+### Crime rate
+
 ```{r}
+summary(crime_data$crmrte)
 par(mfrow=c(1,2))
-hist(crime_data$crmrte, main = "Crimes committed per person", 
+hist(crime_data$crmrte, main = "Crime rate", 
      xlab="Crime Rate")
-hist(log(crime_data$crmrte), main = "Crimes committed per person", 
+hist(log(crime_data$crmrte), main = "Crime rate", 
      xlab="Log of Crime Rate")
 ```
-The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively
-skewed to the left. We can take the log transformation which makes the variable appear more normally distributed. As a
-result, for our modeling, we will stick with using the log of the crime rate from here on.
+
+The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
+
+Any skew in the original data may cause the residuals to not follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
+
+Let us look at some predictor variables.
 
 ### Probability of arrest
+
 ```{r}
-hist(crime_data$prbarr, main = "Histogram of Probability of arrest", 
-     xlab="arrest probability")
 summary(crime_data$prbarr)
+par(mfrow=c(2,2))
+hist(crime_data$prbarr, main="Histogram")
+boxplot(crime_data$prbarr, main="Box plot")
+m = lm(crime_data$crmrte ~ crime_data$prbarr)
+plot(crime_data$prbarr, crime_data$crmrte, main="Correlation with crime rate")
+abline(m, col="blue")
+cor(crime_data$crmrte, crime_data$prbarr)
 ```
-The plot looks fairly normal with some values showing above 1.0 which seems odd for a probability statistic. We likely have
-to pay attention to this variable in our analysis later. 
+
+The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  We will keep the values for now.
+
+There is fairly strong negative correlation of -0.39: as probability of arrests increases, crime rate goes down.
 
 ### Probability of conviction
+
 ```{r}
 hist(crime_data$prbconv, main="Histogram of Probability of convictions", 
      xlab="conviction probability")
