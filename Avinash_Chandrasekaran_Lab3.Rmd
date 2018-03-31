@@ -89,23 +89,6 @@ structure(crime_data)
 
 There are a total of 90 observations across 23 different variables. We will now explore each of the variables collected in the data.
 
-### Crime rate
-
-```{r}
-summary(crime_data$crmrte)
-par(mfrow=c(1,2))
-hist(crime_data$crmrte, main = "Crime rate", 
-     xlab="Crime Rate")
-hist(log(crime_data$crmrte), main = "Crime rate", 
-     xlab="Log of Crime Rate")
-```
-
-The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
-
-Any skew in the original data may cause the residuals to not follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
-
-Let us look at some predictor variables.
-
 ```{r util_fns}
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE) {
@@ -133,15 +116,56 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE) {
 }
 ```
 
+### Police per capita
+
+We will start with police per capita.
+
+```{r}
+f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
+```
+
+Police per capita has positive skew.  Taking log helps, but we still see a very large outlier.  Fitting a model, we see that observation #51 has Cook's distance beyond 1.  This is a lot of leverage.  Let us look at the observation:
+
+```{r}
+crime_data %>% slice(51) %>% select(everything())
+```
+
+The crime rate, at 0.005, is extremely low for police per capita close to the maximum.  It is questionable whether this observation is accurate.  We will remove this reading from the dataset and replot.
+
+```{r}
+crime_data = crime_data %>% slice(-51)
+f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
+crime_data$log_polpc = log(crime_data$polpc)
+```
+
+The distribution looks better now.  We see quite strong positive correlation of 0.55 with crime rate: high number of police per capita is associated with high crime rate.  It is probably a cause, rather than a result.  More police may have been deployed to deal with higher amount of crime.
+
+For our first model, we will *not* include this variable.
+
+### Crime rate
+
+```{r}
+summary(crime_data$crmrte)
+par(mfrow=c(1,2))
+hist(crime_data$crmrte, main = "Crime rate", 
+     xlab="Crime Rate")
+hist(log(crime_data$crmrte), main = "Crime rate", 
+     xlab="Log of Crime Rate")
+```
+
+The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
+
+Any skew in the original data may cause the residuals to not follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
+
 ### Probability of arrest
 
 ```{r}
-f_describe_col(crime_data$prbarr)
+f_describe_col(crime_data$prbarr, plot_model=TRUE)
 ```
 
-The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  The outlier at $prbarr=1.1$ has a Cook's distance of 51, with considerable leverage.  Nevertheless, we will keep the values for now.
+The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  Nevertheless, we will keep the values for now.
 
-There is fairly strong negative correlation of -0.39: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent.
+There is fairly strong negative correlation of -0.38: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent.
 
 We will include $prbarr$ in our model.
 
@@ -156,7 +180,7 @@ This variable has quite a bit of left skew.  It also has many outliers after the
 
 Taking a log transform improves the skew, although the spread is still quite a bit.  There are no outliers with large influence as measured by Cook's distance.
 
-There is moderate negative correlation with crime rate of -0.39.  As convictions go up, crime rate goes down.  Since we have already considered $prbarr$, let us check if $prbconv$ has high correlation with $prbarr$:
+There is moderate negative correlation with crime rate of -0.3.  As convictions go up, crime rate goes down.  Since we have already considered $prbarr$, let us check if $prbconv$ has high correlation with $prbarr$:
 
 ```{r}
 print(cor(crime_data$prbarr, crime_data$prbconv))
@@ -166,52 +190,36 @@ print(cor(crime_data$prbarr, crime_data$log_prbconv))
 Not much.  We will include $log_prbconv$ in our model.
 
 ### Probability of prison sentence
+
 ```{r}
-f_describe_col(crime_data$prbpris, plot_model=TRUE)
-hist(crime_data$prbpris, main = "Histogram of Probability of prison sentence", 
-     xlab="prison sentence prob")
+f_describe_col(crime_data$prbpris)
 ```
 
-This histogram plot looks fairly normal and we don't observe any weird values. 
+This histogram plot looks fairly normal and we don't observe any weird values.  However, correlation is almost nonexistent wrt crime rate.
 
-### Average sentence days
+We will *not* consider this variable in our model.
+
+### Average sentence duration
+
 ```{r}
-hist(crime_data$avgsen, main="Histogram of Average sentence in days", 
-     xlab="avg sentence")
+f_describe_col(crime_data$avgsen, do_log=TRUE)
 ```
-The average sentence in days looks slightly positive skewed. There appears to be an outlier with some values appearing
-greater than 20 days. 
 
-### Police per Capita
+The average sentence in days looks slightly positive skewed, which we can correct with a log transform.  But correlation is absent with respect to crime rate.  It is interesting because we would expect that longer sentences would deter crime.
+
+Perhaps we can make a policy recommendation to consider reducing sentences over long periods of time, or to be more lenient in pardoning criminals already serving long sentences.
+
+We will *not* consider this variable in our model.
+
+### Population density
+
 ```{r}
-par(mfrow=c(1,2))
-hist(crime_data$polpc, main="Histogram of Police per capita", 
-     xlab="police per capita")
-hist(log(crime_data$polpc), main="Histogram of Police per capita", breaks=20,
-     xlab="Log of police per capita")
-summary(crime_data$polpc)
+f_describe_col(crime_data$avgsen, do_log=TRUE)
 ```
-The histogram of police per capita appears to be postively skewed with some outlier on the far right closer to 0.01. Taking
-the log of the metric makes the plot look more normal. The log transformation will likely be useful to examine the effects
-of police presence on crime.
 
-### People per sq. mile
-```{r}
-par(mfrow=c(1,2))
-hist(crime_data$density, main="Histogram of density", 
-     xlab="density")
-hist(log(crime_data$density), main="Histogram of density", breaks=20,
-     xlab="log density")
-summary(crime_data$density)
-crime_data = filter(crime_data, density>0.01)
-```
-The histogram of density shows lot of positive skew. The log transformation shows a more promising normal distribution
-whereas it is skewed more towards the right due to a min value that seems out of place. We will continue to use the log
-value but pay heed to the min value for anamolies.
+The histogram of density shows a bit positive skew. The log transformation shows a more promising normal distribution.  There are no outliers with large leverage as measured by Cook's distance.
 
-We also observe one extreme outlier value of 0.000020342. This seems like an unlikely value for people per square mile
-and we are thus removing it from consideration.
-
+There is only very slight positive correlation with crime rate.  We will *not* consider this variable for a first model.
 
 ### Tax revenue per capita
 ```{r}
