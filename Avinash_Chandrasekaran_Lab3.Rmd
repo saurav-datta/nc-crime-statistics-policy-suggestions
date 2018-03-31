@@ -108,19 +108,27 @@ Let us look at some predictor variables.
 
 ```{r util_fns}
 # Utility function to describe a column variable
-f_describe_col = function (col, do_log=FALSE) {
+f_describe_col = function (col, do_log=FALSE, plot_model=FALSE) {
   print(summary(col))
   par(mfrow=c(2,2))
   hist(col, main="Histogram")
   boxplot(col, main="Box plot")
-  m = lm(crime_data$crmrte ~ col)
-  plot(col, crime_data$crmrte, main="Cor. with crime rate")
+  if (do_log == TRUE) {
+    x = log(col)
+    hist(x, main="Histogram, log")
+  } else {
+    x = col
+  }
+  print(signif(cor(x, crime_data$crmrte), 3))
+  m = lm(crime_data$crmrte ~ x)
+  plot(x, crime_data$crmrte, main="Cor. with crime rate")
   abline(m, col="blue")
-  print(signif(cor(col, crime_data$crmrte), 3))
-  if (do_log==TRUE) {
-    hist(log(col), main="Histogram, log")
-    log_col = paste("log_", col)
-    crime_data$log_col = log(col)
+  if (plot_model == TRUE) {
+    plot(m)
+    if (do_log == TRUE) {
+      m = lm(crime_data$crmrte ~ log(col))
+      plot(m)
+    }
   }
 }
 ```
@@ -133,30 +141,37 @@ f_describe_col(crime_data$prbarr)
 
 The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  The outlier at $prbarr=1.1$ has a Cook's distance of 51, with considerable leverage.  Nevertheless, we will keep the values for now.
 
-There is fairly strong negative correlation of -0.39: as probability of arrests increases, crime rate goes down.
+There is fairly strong negative correlation of -0.39: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent.
+
+We will include $prbarr$ in our model.
 
 ### Probability of conviction
 
 ```{r}
 f_describe_col(crime_data$prbconv, do_log=TRUE)
+crime_data$log_prbconv = log(crime_data$prbconv)
 ```
 
-The histogram plot doesn't look normal with more positive/left skew observed in the data. Moreover, plenty of values appear
-above 1 which again seems odd considering this is a probability that is supposed to be between 0 and 1. 
+This variable has quite a bit of left skew.  It also has many outliers after the 3rd quartile.  There are a few beyond 1 as well.  Again, this is because we are not looking at a real probability but a ratio of convictions to arrests.  It is possible, although perhaps uncommon, that a suspect is arrested once but convicted on multiple charges.
 
-Instead of excluding all values above 1, we likely have to assume these higher values denote high changes of getting
-convicted in our analysis. From the definition of these terms provided, probability of arrest is proxied by the ratio of
-of the arrests to offenses. And probability of conviction is proxied by ration of convictions to arrests, probability of 
-prison sentence is proxied by convictions resulting in prison to total convictions. Since these are all "ratios" and not
-true probabilities, we decided to not exclude and remove these values from the dataset.
+Taking a log transform improves the skew, although the spread is still quite a bit.  There are no outliers with large influence as measured by Cook's distance.
 
-Taking the log transformation of this statistics doesn't make much sense either. 
+There is moderate negative correlation with crime rate of -0.39.  As convictions go up, crime rate goes down.  Since we have already considered $prbarr$, let us check if $prbconv$ has high correlation with $prbarr$:
+
+```{r}
+print(cor(crime_data$prbarr, crime_data$prbconv))
+print(cor(crime_data$prbarr, crime_data$log_prbconv))
+```
+
+Not much.  We will include $log_prbconv$ in our model.
 
 ### Probability of prison sentence
 ```{r}
+f_describe_col(crime_data$prbpris, plot_model=TRUE)
 hist(crime_data$prbpris, main = "Histogram of Probability of prison sentence", 
      xlab="prison sentence prob")
 ```
+
 This histogram plot looks fairly normal and we don't observe any weird values. 
 
 ### Average sentence days
