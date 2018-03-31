@@ -74,7 +74,7 @@ crime1$prbconv_cast=as.numeric(as.matrix(crime1$prbconv))
 
 
 ```{r}
-crime_tmp=sqldf("SELECT * FROM crime1 WHERE NOT (prbconv_cast >1 OR prbarr >1 OR prbpris >1 OR prbconv_cast<0 OR  prbarr<0 or prbpris<0)")
+crime_tmp=sqldf("SELECT * FROM crime1 WHERE NOT ( prbconv_cast<0 OR  prbarr<0 or prbpris<0)")
 crime1=crime_tmp
 sqldf("SELECT count(*) from crime1")
 ```
@@ -146,17 +146,23 @@ abline(m)
 }
 ```
 
+```{r}
+sqldf("select count(8) from crime1 where west=1  and central=1")
+```
+We see that the same county is marked as both west and central.
+
+
 
 
 #### Analyzing regions
 ```{r Handling unknown regions}
-crime_tmp = sqldf("SELECT *, CASE WHEN west=1 THEN \'WEST\'
-                                WHEN central=1 THEN \'CENTRAL\'
-                                WHEN urban=1 THEN \'URBAN\'
-                                ELSE \'UNKNOWN\'
-                          END regionofcrime
+crime_tmp = sqldf("SELECT *, CASE WHEN urban=1 THEN \'URBAN\'
+                                ELSE \'RURAL\'
+                          END AS 'urbanorrural'
                 FROM crime1" 
 )
+
+##END regionofcrime
 
 ```
 
@@ -166,7 +172,7 @@ crime1=crime_tmp
 
 
 ```{r}
-sqldf("SELECT regionofcrime as regionofcrime, count(8) as countofcrimes from crime1 GROUP BY regionofcrime"
+sqldf("SELECT urbanorrural as urbanorrural, count(8) as countofcrimes from crime1 GROUP BY urbanorrural"
      )
 ```
 
@@ -198,10 +204,12 @@ crime_tmp=sqldf( c("DELETE FROM crime1 WHERE crmrte IS NULL",
 crime1=crime_tmp
 sqldf("SELECT count(*) FROM crime1 ")
 ```
+
+
 #### Reanalyzing regions after deleting NAs
 
 ```{r}
-sqldf("SELECT regionofcrime as regionofcrime, count(8) as countofcrimes from crime1 GROUP BY regionofcrime"
+sqldf("SELECT urbanorrural as urbanorrural, count(8) as countofcrimes from crime1 GROUP BY urbanorrural"
      )
 ```
 #### Analyzing prbarr
@@ -271,43 +279,23 @@ f_plot_one(crime1$taxpc,"tax revenue per capita")
 ```
 Outlier of taxpc=120
 
-
-#### Analyzing region
-
-We see that there are 58 records for which we have the region, whereas there are 97 records in the dataset. So there are crimes with unknown region.
-
-
-```{r}
-sqldf("select \'1. WEST\' as REGION, count(8) as COUNT from crime1 where west=1
-      UNION
-      select \'2. CENTRAL\' as REGION, count(8) as COUNT from crime1 where central=1
-       UNION
-      select \'3. URBAN\' as REGION, count(8) as COUNT from crime1 where urban=1
-      UNION
-      select \'4. TOTAL\' as REGION, count(8) as COUNT from crime1 where (west=1 or central=1 or urban =1 )"
-     )
-
-```
-
-
-
 #### Analyzing Crimes committed per person by region
 ```{r}
 # 
-f_plot_two("regionofcrime","Region of crime","logcrmrte","Crimes committed per person","Crimes per person by Region of crime")
+f_plot_two("urbanorrural","Urban or rural","logcrmrte","Crimes committed per person","Crimes per person by Region of crime")
 
 ```
 
 #### Analyzing Crimes committed per person by region
 
 ```{r}
-f_plot_two("county","County identifier","logcrmrte","Crimes committed per person","Crimes per person by County identifier")
+f_plot_two("county","County identifier","logcrmrte","Log of crimes committed per person","Log of crimes per person by County identifier")
 
 ```
 
 
 ```{r}
-sqldf("SELECT county,crmrte FROM crime1 WHERE crmrte>=0.09  ")
+sqldf("SELECT county,crmrte,logcrmrte FROM crime1 WHERE logcrmrte>=-2.5  ")
 ```
 
 #### Analyzing percent minority
@@ -323,7 +311,7 @@ f_plot_one(crime1$pctmin80,"perc. minority, 1980")
 
 ```{r}
 
-f_plot_two("regionofcrime","Region of crime","pctmin80","Percent minority","Percent minority by Region of crime")
+f_plot_two("urbanorrural","Region of crime","pctmin80","Percent minority","Percent minority by Region of crime")
 
 
 ```
@@ -341,7 +329,7 @@ f_plot_one(crime1$pctymle,"Percent young male")
 ```{r}
 
 
-f_plot_two("regionofcrime","Region of crime","pctymle","Percent young male","Percent young male by Region of crime")
+f_plot_two("urbanorrural","Region of crime","pctymle","Percent young male","Percent young male by Region of crime")
 
 ```
 
@@ -610,13 +598,13 @@ None of the points have Cook's distance greater than 1.
 ##### Model 3: All variables with strong positive or negative correlation
 
 ```{r}
-logcrmrte.lm3 = lm( logcrmrte ~ logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc, data=crime1)
-logcrmrte.lm3
+logcrmrte.lm4 = lm( logcrmrte ~ logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc, data=crime1)
+logcrmrte.lm4
 ```
 
 
 ```{r}
-plot(logcrmrte.lm3, which =1)
+plot(logcrmrte.lm4, which =1)
 
 ```
 
@@ -624,20 +612,20 @@ The regression lines is close to 0 residual. This indicates there is a linear re
 
 
 ```{r}
-plot(logcrmrte.lm3, which =2)
+plot(logcrmrte.lm4, which =2)
 
 ```
 
 The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
 
 ```{r}
-plot(logcrmrte.lm3, which =4)
+plot(logcrmrte.lm4, which =4)
 
 ```
 None of the points have Cook's distance greater than 1. However, Points 5, 23 and 72 have higher leverage than all other points. 
 
 ```{r}
-vif(logcrmrte.lm3)
+vif(logcrmrte.lm4)
 ```
 There is no multicollinearity since none of the vif values are more than 10.
 
@@ -648,6 +636,7 @@ There is no multicollinearity since none of the vif values are more than 10.
 summary(logcrmrte.lm1)$r.squared 
 summary(logcrmrte.lm2)$r.squared 
 summary(logcrmrte.lm3)$r.squared 
+summary(logcrmrte.lm4)$r.squared 
 
 ```
 
@@ -655,7 +644,7 @@ Based on the r-squared output logcrmrte.lm1 or logcrmrte.lm3 is preferred.
 
 ```{r}
 ## The Akaike information criterion (AIC) is an estimator of the relative quality of statistical models for a given set of data. Given a collection of models for the data, AIC estimates the quality of each model, relative to each of the other models. Thus, AIC provides a means for model selection.
-AIC(logcrmrte.lm1, logcrmrte.lm2, logcrmrte.lm3)
+AIC(logcrmrte.lm1, logcrmrte.lm2, logcrmrte.lm3, logcrmrte.lm4)
 ```
 
 
@@ -669,6 +658,66 @@ stargazer(logcrmrte.lm1, logcrmrte.lm2,logcrmrte.lm3, type = "latex",
           keep.stat = c("rsq", "n"),
           omit.table.layout = "n") # Omit more output related to errors
 
+```
+
+
+```{r}
+crime_west=sqldf("SELECT * FROM crime1 WHERE west=1")
+
+sqldf("SELECT COUNT(*) AS count_crime_west FROM crime_west")
+
+```
+
+```{r}
+crime_central=sqldf("SELECT * FROM crime1 WHERE central=1")
+
+sqldf("SELECT COUNT(*) AS count_crime_central FROM crime_central")
+
+```
+
+
+```{r}
+library(corrplot)
+
+corrplot(cor(crime_west[,
+                        c("logcrmrte","crmrte", "prbarr", "prbconv_cast", "prbpris", "logavgsen", 
+                          "logpolpc", "log1pdensity", "taxpc", "pctmin80", "wcon", 
+                          "mix", "pctymle")]), type = "upper")
+
+```
+
+
+```{r}
+logcrmrte.west.lm5 = lm( logcrmrte ~ logpolpc + log1pdensity , data=crime_west)
+logcrmrte.west.lm5
+
+```
+
+
+
+```{r}
+corrplot(cor(crime_central[,
+                        c("logcrmrte", "crmrte","prbarr", "prbconv_cast", "prbpris", "logavgsen", 
+                          "logpolpc", "log1pdensity", "taxpc", "pctmin80", "wcon", 
+                          "mix", "pctymle")]), type = "upper")
+```
+
+
+
+```{r}
+logcrmrte.central.lm6 = lm( logcrmrte ~ logpolpc + log1pdensity + prbconv_cast , data=crime_central)
+logcrmrte.central.lm6
+
+```
+
+
+```{r}
+summary(logcrmrte.lm1)$r.squared 
+summary(logcrmrte.lm2)$r.squared 
+summary(logcrmrte.lm3)$r.squared 
+summary(logcrmrte.lm4)$r.squared 
+summary(logcrmrte.west.lm5)$r.squared 
+summary(logcrmrte.central.lm6)$r.squared 
 ```
 
 
