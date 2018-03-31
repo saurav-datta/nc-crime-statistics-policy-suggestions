@@ -6,72 +6,86 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-# 1. Introduction
-
-Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime
-statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand
-the determinants of crime and to generate policy suggestions that are applicable to local government.
-
-The data provided consists of 25 variables and 91 different observations collected in a given year. Moreover the dataset
-obtained is a single cross-section of data collected from variety of different sources. For the analysis made
-in this research, we will assume that the data collected from different counties in NC were randomly sampled.
-
-Our primary analysis of data will include ordinary least squares regressions to make casual estimates and we will clearly 
-explain how omitted variabled may affect our conclusions. We begin our research by conducting exploratory analysis of the
-dataset to gain a better understanding of the variables.
-
-# 2. Exploratory Analysis
-
-## Data processing
-
-```{r, include= FALSE}
+knitr::opts_chunk$set(echo=TRUE, tidy.opts=list(width.cutoff=80), tidy=TRUE)
 library(car)
 library(corrplot)
 library(lmtest)
 library(sandwich)
 library(stargazer)
 library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(sqldf)
 ```
+
+# 1. Introduction
+
+Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand the determinants of crime and to generate policy suggestions that are applicable to local government.
+
+The data provided consists of 25 variables and 91 different observations collected in a given year. Moreover the dataset obtained is a single cross-section of data collected from variety of different sources. For the analysis made in this research, we will assume that the data collected from different counties in NC were randomly sampled.
+
+Our primary analysis of data will include ordinary least squares regressions to make casual estimates and we will clearly explain how omitted variabled may affect our conclusions. We begin our research by conducting exploratory analysis of the dataset to gain a better understanding of the variables.
+
+# 2. Data Input
+
+Let us read the data and have a first look.
 
 ```{r}
 # Read the csv file
 crime_data_raw = read.csv("crime_v2.csv")
-
-# Print out summary of the data read (excluded from the report)
-#summary(crime_data_raw)
-#str(crime_data_raw)
 ```
-There appears to be 6 rows of NA's across all variables. We also notice that 'prbconv' is a factor while the rest of the
-variables are numeric. 
+
+### Empty rows
+
+```{r include=FALSE}
+summary(crime_data_raw)
+tail(crime_data_raw, n=8)
+```
+
+There appears to be 6 rows of NA's across all variables. We can simply use na.omit(), because the number of all-NA rows matches the count on all the variables.
+
+### Column formatting
+
+We also notice that 'prbconv' is a factor while the rest of the variables are numeric.  West, central and urban are really categorical variables and not integers: we will treat them as such.
 
 ```{r}
 # Remove NA rows
 crime_data = na.omit(crime_data_raw)
 
-# Print out all column names (excluded from the report)
-#colnames(crime_data)
-
 # convert factor to numeric for variable prbconv
 crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
+# Convert some numerics into factors
+crime_data$west = as.factor(crime_data$west)
+crime_data$central = as.factor(crime_data$central)
+crime_data$urban = as.factor(crime_data$urban)
 ```
-There are a total of 91 observations across 25 different variables. We will now explore each of the variables collected in
-the data
 
-County and Year variables just represent the different counties and the year the data was collected. As such these don't
-require further analysis.
+### Unused variables
+
+County and Year variables just represent the different counties and the year the data was collected. Year is always 87.  Hence, we can safely remove these from the dataset for further analysis.
 
 ```{r}
-crime_data %>% group_by(county) %>% filter(n()>1)
+crime_data = crime_data %>% dplyr::select(-c(year, county))
+```
+
+### Duplicate records
+
+We also noticed a duplicate record (record #89) in the dataset. As this could potentially affect our regression analysis, we will remove the duplicate record.
+
+```{r}
+duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
-We also noticed that one of the rows was duplicated in the dataset. As this could potentially affect our regression
-analysis, we decided to remove the duplicated entry.
+# 3. Exploratory Data Analysis
 
-## Individual Variable Analysis
+## Single variable analysis
+
+```{r include=FALSE}
+structure(crime_data)
+```
+
+There are a total of 90 observations across 23 different variables. We will now explore each of the variables collected in the data.
 
 ### Crimes committed per person
 ```{r}
