@@ -106,30 +106,41 @@ Any skew in the original data may cause the residuals to not follow normal distr
 
 Let us look at some predictor variables.
 
+```{r util_fns}
+# Utility function to describe a column variable
+f_describe_col = function (col, do_log=FALSE) {
+  print(summary(col))
+  par(mfrow=c(2,2))
+  hist(col, main="Histogram")
+  boxplot(col, main="Box plot")
+  m = lm(crime_data$crmrte ~ col)
+  plot(col, crime_data$crmrte, main="Cor. with crime rate")
+  abline(m, col="blue")
+  print(signif(cor(col, crime_data$crmrte), 3))
+  if (do_log==TRUE) {
+    hist(log(col), main="Histogram, log")
+    log_col = paste("log_", col)
+    crime_data$log_col = log(col)
+  }
+}
+```
+
 ### Probability of arrest
 
 ```{r}
-summary(crime_data$prbarr)
-par(mfrow=c(2,2))
-hist(crime_data$prbarr, main="Histogram")
-boxplot(crime_data$prbarr, main="Box plot")
-m = lm(crime_data$crmrte ~ crime_data$prbarr)
-plot(crime_data$prbarr, crime_data$crmrte, main="Correlation with crime rate")
-abline(m, col="blue")
-cor(crime_data$crmrte, crime_data$prbarr)
+f_describe_col(crime_data$prbarr)
 ```
 
-The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  We will keep the values for now.
+The plot looks fairly normal, but there are 2 outliers.  It may seem odd that the value goes above 1.0 for a probability, but this is not a true probability: this is a ratio of arrests to offenses.  It may be that the convict escaped and a second arrest was made.  The outlier at $prbarr=1.1$ has a Cook's distance of 51, with considerable leverage.  Nevertheless, we will keep the values for now.
 
 There is fairly strong negative correlation of -0.39: as probability of arrests increases, crime rate goes down.
 
 ### Probability of conviction
 
 ```{r}
-hist(crime_data$prbconv, main="Histogram of Probability of convictions", 
-     xlab="conviction probability")
-summary(crime_data$prbconv)
+f_describe_col(crime_data$prbconv, do_log=TRUE)
 ```
+
 The histogram plot doesn't look normal with more positive/left skew observed in the data. Moreover, plenty of values appear
 above 1 which again seems odd considering this is a probability that is supposed to be between 0 and 1. 
 
