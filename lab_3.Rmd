@@ -83,7 +83,40 @@ Let us eliminate observations 25 and 84: their Cook's distances are very large. 
 
 ```{r}
 crime %>% slice(c(25, 84)) %>% dplyr::select(everything())
-crime <- crime %>% slice(-c(25, 84))
+crime2 <- crime %>% slice(-c(25, 84))
+m = lm(crmrte ~ ., data=crime2)
+par(mfrow=c(2,2))
+plot(m)
+summary(m)
+cooksd <- cooks.distance(m)
+# http://r-statistics.co/Outlier-Treatment-With-R.html
+plot(cooksd, pch="*", cex=2, main="Influential Obs by Cooks distance")  # plot cook's distance
+abline(h = 4*mean(cooksd, na.rm=T), col="red")  # add cutoff line
+text(x=1:length(cooksd)+1, y=cooksd, labels=ifelse(cooksd>4*mean(cooksd, na.rm=T),names(cooksd),""), col="red")  # add labels
+influential <- as.numeric(names(cooksd)[(cooksd > 4*mean(cooksd, na.rm=T))])
+outliers <- crime[influential,]
+outliers
+```
+
+To analyze outliers, let us look at: prbarr, prbconv, polpc, density, pctmin80, pctymle for these rows.
+
+Observations #23, #45 has an outlier for crime rate (0.088, 0.041).  The median is 0.030 and 3rd quartile is 0.040.
+
+Observation 50?
+
+Observation #59 has an outlier for pctymle (25%).  All others are <15%.
+
+Observations 81 has an outlier for wloc, 88?
+
+
+```{r}
+boxplot(crime$density)
+summary(crime$crmrte)
+```
+
+```{r}
+crime2 %>% slice(c(45, 59, 81)) %>% dplyr::select(everything())
+hist(crime2$prbarr)
 ```
 
 Our dependent variable is going to be $crmrte$.  We want to come up with a model that can predict crime rate.
