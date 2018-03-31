@@ -1,0 +1,676 @@
+---
+title: "Datta_Saurav_Lab3_Draft"
+author: "Saurav Datta"
+date: "3/24/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+
+
+```{r}
+#install.packages("sqldf")
+# Sys.setenv(JAVA_HOME='/Library/Java/JavaVirtualMachines/jdk1.8.0_151.jdk/Contents/Home')
+# install.packages("rJava")
+# install.packages("RH2")
+#install.packages("gridExtra")
+
+
+
+```
+
+```{r}
+library(sqldf)
+# library(RH2)
+library(ggplot2)
+library(gridExtra)
+library(stargazer)
+library(car)
+
+```
+
+```{r}
+getwd()
+setwd("/Users/sdatta/Documents/1. Personal/MIDS/W203/Course material/Lab3")
+
+```
+
+```{r}
+#db = dbConnect(SQLite(), dbname="lab3.sqllite")
+#sqldf("attach 'lab3.sqllite' as new")
+```
+
+
+
+```{r}
+#dbRemoveTable(db, "crime0")
+
+```
+
+
+```{r}
+crime0=read.csv("crime_v2.csv",
+                    header = TRUE
+                  )
+crime1=crime0
+```
+
+
+```{r}
+sqldf("select * from crime1 limit 5")
+```
+#### Converting prbconv from factor to numeric
+
+We see that column prbconv is factor datatype
+
+```{r}
+crime1$prbconv_cast=as.numeric(as.matrix(crime1$prbconv))
+
+```
+
+
+```{r}
+crime_tmp=sqldf("SELECT * FROM crime1 WHERE NOT (prbconv_cast >1 OR prbarr >1 OR prbpris >1 OR prbconv_cast<0 OR  prbarr<0 or prbpris<0)")
+crime1=crime_tmp
+sqldf("SELECT count(*) from crime1")
+```
+
+#### Defining common function
+
+```{r}
+f_check_null <- function(in_field_name ){
+  sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM crime1 WHERE (%s IS \"NA\" or %s IS NULL)", in_field_name,in_field_name)
+  sqldf(sql)
+}
+
+```
+
+```{r}
+f_plot_one <- function(in_db_field_name,in_main_title ){
+  
+  title_log=paste("log of",in_main_title, sep = " ")
+  
+  par(mfrow=c(2,2))
+  hist(in_db_field_name, main=in_main_title)
+  hist(log(in_db_field_name), main=title_log)
+  boxplot(in_db_field_name, main=in_main_title)
+
+}
+
+```
+
+```{r}
+f_plot_two <- function(in_field_name1,in_xlabel,in_field_name2,in_y_label, in_main_title ){
+  
+
+  theme_update(plot.title = element_text(hjust = 0.5))
+
+  p1<-ggplot(crime1, aes_string(in_field_name1,in_field_name2)) + 
+         geom_point() +
+         geom_smooth(na.rm = FALSE, method = loess)
+  p1 + ggtitle(in_main_title) +xlab(in_xlabel) + ylab(in_y_label)
+}
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+  # ggplot(crime1, aes(regionofcrime,crmrte)) + 
+  #          geom_boxplot()
+
+# p2<-ggplot(crime1, aes_string(in_field_name1,in_field_name2)) +
+  #        geom_count()
+  # p2 + ggtitle(in_main_title) +xlab(in_xlabel) + ylab(in_y_label)
+  # 
+  # grid.arrange(p1, p2, nrow=1,ncol=2)
+```
+
+```{r}
+f_plot_three  <- function(in_field_x,in_xlabel,in_field_y,in_y_label){
+
+corr_val=round(cor(in_field_y, in_field_x),4)
+
+main_title=paste(in_xlabel,'v/s',in_y_label, sep = ' ')
+plot(in_field_x, in_field_y, 
+     main = main_title,
+      sub=paste("Corr. coefficient:",corr_val),
+      xlab=in_xlabel, 
+      ylab=in_y_label)
+m = lm( in_field_y ~ in_field_x) 
+abline(m)
+
+}
+```
+
+
+
+#### Analyzing regions
+```{r Handling unknown regions}
+crime_tmp = sqldf("SELECT *, CASE WHEN west=1 THEN \'WEST\'
+                                WHEN central=1 THEN \'CENTRAL\'
+                                WHEN urban=1 THEN \'URBAN\'
+                                ELSE \'UNKNOWN\'
+                          END regionofcrime
+                FROM crime1" 
+)
+
+```
+
+```{r Overwriting actual dataframe}
+crime1=crime_tmp
+```
+
+
+```{r}
+sqldf("SELECT regionofcrime as regionofcrime, count(8) as countofcrimes from crime1 GROUP BY regionofcrime"
+     )
+```
+
+#### Analyzing crmrte
+
+
+```{r}
+f_check_null("crmrte")
+f_plot_one(crime1$crmrte,"crimes committed per person")
+crime1$logcrmrte=log(crime1$crmrte)
+
+```
+
+
+Analyzing the 6 records with missing crmrte values
+```{r}
+sqldf("SELECT * FROM crime1 WHERE (crmrte IS \"NA\" or crmrte IS NULL) ")
+```
+We see that all relevant columns of these 6 records are NA. So we can safely delete them
+
+```{r}
+crime_tmp=sqldf( c("DELETE FROM crime1 WHERE crmrte IS NULL",
+         "SELECT * FROM crime1"
+         )
+)
+```
+
+```{r}
+crime1=crime_tmp
+sqldf("SELECT count(*) FROM crime1 ")
+```
+#### Reanalyzing regions after deleting NAs
+
+```{r}
+sqldf("SELECT regionofcrime as regionofcrime, count(8) as countofcrimes from crime1 GROUP BY regionofcrime"
+     )
+```
+#### Analyzing prbarr
+
+```{r}
+f_check_null("prbarr")
+f_plot_one(crime1$prbarr,"probability of arrest")
+```
+
+
+#### Analyzing prbconv_cast
+
+
+```{r}
+
+f_check_null("prbconv_cast")
+f_plot_one(crime1$prbconv_cast,"probability of conviction")
+
+```
+
+
+#### Analyzing avgsen
+
+
+```{r}
+
+f_check_null("avgsen")
+f_plot_one(crime1$avgsen,"avg. sentence, days")
+crime1$logavgsen =  log(crime1$avgsen)
+
+```
+
+#### Analyzing polpc
+
+
+```{r}
+f_check_null("polpc")
+f_plot_one(crime1$polpc,"police per capita")
+crime1$logpolpc =  log(crime1$polpc)
+
+```
+
+
+
+#### Analyzing density
+
+We see that log1p of density is closer to normal distribution than either log or exp ( tried it offline).
+
+```{r}
+f_check_null("density")
+f_plot_one(crime1$density,"people per sq. mile")
+
+hist(log1p(crime1$density))
+
+crime1$log1pdensity=log1p(crime1$density)
+
+```
+
+
+#### Analyzing taxpc
+
+```{r}
+
+f_check_null("taxpc")
+f_plot_one(crime1$taxpc,"tax revenue per capita")
+
+```
+Outlier of taxpc=120
+
+
+#### Analyzing region
+
+We see that there are 58 records for which we have the region, whereas there are 97 records in the dataset. So there are crimes with unknown region.
+
+
+```{r}
+sqldf("select \'1. WEST\' as REGION, count(8) as COUNT from crime1 where west=1
+      UNION
+      select \'2. CENTRAL\' as REGION, count(8) as COUNT from crime1 where central=1
+       UNION
+      select \'3. URBAN\' as REGION, count(8) as COUNT from crime1 where urban=1
+      UNION
+      select \'4. TOTAL\' as REGION, count(8) as COUNT from crime1 where (west=1 or central=1 or urban =1 )"
+     )
+
+```
+
+
+
+#### Analyzing Crimes committed per person by region
+```{r}
+# 
+f_plot_two("regionofcrime","Region of crime","logcrmrte","Crimes committed per person","Crimes per person by Region of crime")
+
+```
+
+#### Analyzing Crimes committed per person by region
+
+```{r}
+f_plot_two("county","County identifier","logcrmrte","Crimes committed per person","Crimes per person by County identifier")
+
+```
+
+
+```{r}
+sqldf("SELECT county,crmrte FROM crime1 WHERE crmrte>=0.09  ")
+```
+
+#### Analyzing percent minority
+
+```{r}
+
+f_check_null("pctmin80")
+f_plot_one(crime1$pctmin80,"perc. minority, 1980")
+
+```
+
+#### Analyzing percent minority by region
+
+```{r}
+
+f_plot_two("regionofcrime","Region of crime","pctmin80","Percent minority","Percent minority by Region of crime")
+
+
+```
+
+#### Analyzing pctymle
+
+```{r}
+f_check_null("pctymle")
+f_plot_one(crime1$pctymle,"Percent young male")
+
+```
+
+
+#### Analyzing pctymle by region
+```{r}
+
+
+f_plot_two("regionofcrime","Region of crime","pctymle","Percent young male","Percent young male by Region of crime")
+
+```
+
+We see that the UKNOWN region has the highest percent of young male
+
+
+```{r}
+f_plot_two("county","County identifier","pctymle","Percent young male","Percent young male by County identifier")
+
+```
+
+```{r}
+sqldf("SELECT county,pctymle from crime1 WHERE pctymle>=0.20")
+```
+
+
+```{r}
+scatterplotMatrix(crime1[,c("logcrmrte","prbarr",  "prbconv_cast", "logavgsen")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("logcrmrte","prbpris",  "logavgsen")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("logcrmrte","logpolpc",  "log1pdensity")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("logcrmrte","pctmin80",  "wcon")], diagonal = "histogram")
+
+```
+
+
+```{r}
+scatterplotMatrix(crime1[,c("crmrte","mix","pctymle")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("crmrte","wtuc",  "wtrd")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("crmrte","wfir",  "wser")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("crmrte","wmfg",  "wfed")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("crmrte","wsta",  "wloc")], diagonal = "histogram")
+
+```
+
+```{r}
+scatterplotMatrix(crime1[,c("crmrte","mix")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("crmrte","wtuc",  "wtrd")], diagonal = "histogram")
+scatterplotMatrix(crime1[,c("crmrte","wfir",  "wser")], diagonal = "histogram")
+
+```
+
+
+```{r Relevant pairs, eval=FALSE, include=FALSE}
+crmrte v/s prbarr
+crmrte v/s pctymle
+crmrte v/s prbconv
+crmrte v/s prbpris ( low )
+prbpris v/s avgsen ( low )
+crmrte v/s polpc
+crmrte v/s density
+crmrte v/s pctmin80
+crmrte v/s wcon
+pctmin80 v/s wcon
+crmrte v/s wtuc,wtuc,wfir,wmfg,wfed,wsta,wloc
+crmrte v/s wser
+crmrte v/s wser
+crmrte v/s wser
+
+
+```
+
+```{r}
+# corr_val=round(cor(crime1$logcrmrte, crime1$prbarr),4)
+# 
+# main_title=paste(in_xlabel,'v/s',in_y_label, sep = ' ')
+# plot(crime1$prbarr, crime1$logcrmrte, 
+#      main = main_title,
+#       sub=paste("Corr. coefficient:",corr_val),
+#       xlab=in_xlabel, 
+#       ylab=in_y_label)
+# m = lm(in_field_x ~ in_field_y) 
+# abline(m)
+
+```
+
+
+```{r fig.height=7, fig.width=5}
+par(mfrow = c(4, 2))
+
+f_plot_three(crime1$prbarr, "Probability of arrest",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$pctymle, "% of young males",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$prbconv_cast, "Prob of conviction",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$logavgsen, "Log of avg sentence",crime1$logcrmrte,"Crimes committed per person" )
+
+```
+
+
+
+```{r fig.height=5, fig.width=5}
+par(mfrow = c(3, 2))
+
+f_plot_three(crime1$prbpris, "Prob of imprisonment",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$logavgsen, "Average sentence",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$logpolpc, "Police per capita",crime1$logcrmrte,"Crimes committed per person" )
+```
+
+
+```{r fig.height=7, fig.width=5}
+par(mfrow = c(3, 2))
+
+f_plot_three(crime1$pctmin80, "Perc. minority",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$log1pdensity, "People per sq. mile",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$wcon, "Weekly wage, construction",crime1$logcrmrte,"Crimes committed per person" )
+```
+
+
+
+```{r fig.height=7, fig.width=5}
+par(mfrow = c(3, 2))
+
+f_plot_three(crime1$wtuc, "Wkly wge, trns, util, commun",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$wfir, "Wkly wge, fin, ins, real est",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$wser, "Wkly wge, service industry",crime1$logcrmrte,"Crimes committed per person" )
+```
+
+
+
+```{r fig.height=7, fig.width=5}
+par(mfrow = c(3, 2))
+
+f_plot_three(crime1$wmfg, "Wkly wge, manufacturing",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$wfed, "Wkly wge, fed employees",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$wsta, "Wkly wge, state employees",crime1$logcrmrte,"Crimes committed per person" )
+
+f_plot_three(crime1$wloc, "Wkly wge, local gov emps",crime1$logcrmrte,"Crimes committed per person" )
+
+```
+
+
+
+
+
+
+###Strong positive correlation:
+crmrte v/s polpc
+crmrte v/s density
+crmrte v/s wcon
+crmrte v/s wser
+crmrte v/s wmfg
+crmrte v/s wfed
+crmrte v/s wloc
+
+
+####Weak positive correlation:
+crmrte v/s pctymle
+crmrte v/s percent of minority
+crmrte v/s wkly wge, fin, ins, real est
+crmrte v/s wtuc
+
+
+
+####Strong negative correlation:
+crmrte v/s prbarr
+
+
+####Weak negative correlation:
+crmrte v/s prbconv
+
+##### Model 1: Crime related variables
+
+log(crime rate) = log(beta0 + beta1*polpc + beta2*density)
+
+
+```{r}
+logcrmrte.lm1 = lm( logcrmrte ~ logpolpc + log1pdensity + prbarr , data=crime1)
+logcrmrte.lm1
+```
+
+
+```{r}
+plot(logcrmrte.lm1, which =1)
+
+```
+
+The regression lines is close to 0 residual. This indicates there is a linear relationship among logcrmrte with  logpolpc + log1pdensity.
+
+
+```{r}
+plot(logcrmrte.lm1, which =2)
+
+```
+
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
+
+```{r}
+plot(logcrmrte.lm1, which =4)
+
+```
+None of the points have Cook's distance greater than 1. However, Points 5, 23 and 72 have higher leverage than all other points. Let us observe the points:
+
+```{r}
+crime1[5,]
+crime1[23,]
+crime1[72,]
+
+```
+
+#### Checking for multicollinearity
+```{r}
+## Reference: https://www.r-bloggers.com/collinearity-and-stepwise-vif-selection/
+## https://datascienceplus.com/multicollinearity-in-r/
+vif(logcrmrte.lm1)
+```
+Since vif output for both th variable sis less than 10, there does not exist a multicollinearity between the variables.
+
+
+
+
+##### Model 2: Wage variable wcon
+
+log(crime rate) = log(beta0 + beta1*wcon + error)
+
+
+```{r}
+logcrmrte.lm2 = lm( logcrmrte ~ wcon, data=crime1)
+logcrmrte.lm2
+```
+
+
+
+```{r fig.height=5, fig.width=5}
+par(mfrow =c(2,2))
+plot(logcrmrte.lm2,which=c(1,2,4))
+par(mfrow =c(1,1))
+```
+
+The regression lines is close to 0 residual. This indicates there is a linear relationship among logcrmrte with  wcon.
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
+None of the points have Cook's distance greater than 1. 
+
+##### Model 2: Wage variable wmfg
+
+
+log(crime rate) = log(beta0 + beta1*wmfg + error)
+
+
+```{r}
+logcrmrte.lm3 = lm( logcrmrte ~ wmfg, data=crime1)
+logcrmrte.lm3
+```
+
+
+
+```{r fig.height=5, fig.width=5}
+par(mfrow =c(2,2))
+plot(logcrmrte.lm3,which=c(1,2,4))
+par(mfrow =c(1,1))
+```
+
+The regression lines is varying from residual 0. This indicates there is no linear relationship between logcrmrte and wmfg.
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
+None of the points have Cook's distance greater than 1.
+
+
+##### Model 3: All variables with strong positive or negative correlation
+
+```{r}
+logcrmrte.lm3 = lm( logcrmrte ~ logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc, data=crime1)
+logcrmrte.lm3
+```
+
+
+```{r}
+plot(logcrmrte.lm3, which =1)
+
+```
+
+The regression lines is close to 0 residual. This indicates there is a linear relationship between logcrmrte and (logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc)
+
+
+```{r}
+plot(logcrmrte.lm3, which =2)
+
+```
+
+The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
+
+```{r}
+plot(logcrmrte.lm3, which =4)
+
+```
+None of the points have Cook's distance greater than 1. However, Points 5, 23 and 72 have higher leverage than all other points. 
+
+```{r}
+vif(logcrmrte.lm3)
+```
+There is no multicollinearity since none of the vif values are more than 10.
+
+##### Comparing the models
+
+```{r}
+
+summary(logcrmrte.lm1)$r.squared 
+summary(logcrmrte.lm2)$r.squared 
+summary(logcrmrte.lm3)$r.squared 
+
+```
+
+Based on the r-squared output logcrmrte.lm1 or logcrmrte.lm3 is preferred.
+
+```{r}
+## The Akaike information criterion (AIC) is an estimator of the relative quality of statistical models for a given set of data. Given a collection of models for the data, AIC estimates the quality of each model, relative to each of the other models. Thus, AIC provides a means for model selection.
+AIC(logcrmrte.lm1, logcrmrte.lm2, logcrmrte.lm3)
+```
+
+
+Based on the AIC output logcrmrte.lm1 or logcrmrte.lm3 is preferred.
+
+
+```{r, results='asis'}
+stargazer(logcrmrte.lm1, logcrmrte.lm2,logcrmrte.lm3, type = "latex", 
+          report = "vc", # Don't report errors, since we haven't covered them
+          title = "Linear Models Predicting Crime rate per persone",
+          keep.stat = c("rsq", "n"),
+          omit.table.layout = "n") # Omit more output related to errors
+
+```
+
+
+
+

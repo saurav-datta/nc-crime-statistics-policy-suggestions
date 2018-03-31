@@ -6,7 +6,12 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo=TRUE, tidy.opts=list(width.cutoff=80), tidy=TRUE)
+#library(ggplot2)
+#library(gridExtra)
+#library(stargazer)
+#library(car)
+library(dplyr)
 ```
 
 ## About the dataset:
@@ -40,8 +45,10 @@ knitr::opts_chunk$set(echo = TRUE)
 Let us first read the data.
 
 ```{r}
-library(dplyr)
 crime0 = read.csv("crime_v2.csv")
+summary(crime0)
+# There are 6 rows with NA's
+crime0 <- crime0 %>% na.omit()
 colnames(crime0)
 # Commented for conciseness
 # structure(crime0)
@@ -51,14 +58,32 @@ colnames(crime0)
 # levels(crime0$prbconv)
 crime0$prbconv = as.numeric(levels(crime0$prbconv))[crime0$prbconv]
 
-crime = crime0 %>% 
-  filter(prbconv <= 1.0) %>% 
-  filter(prbarr <= 1.0) %>% 
-  filter(prbpris <= 1.0) %>% 
-  filter(!(west == 1 & central == 1)) %>%
-  select(-year)
+crime = crime0 %>% dplyr::select(-year)
+
+# Convert some numerics into factors
+crime$west = as.factor(crime$west)
+crime$central = as.factor(crime$central)
+crime$urban = as.factor(crime$urban)
+#crime$county = as.factor(crime$county)
+
 # Commented for conciseness
 # structure(crime)
+```
+
+Let us look at outliers and influential records.
+
+```{r}
+m = lm(crmrte ~ ., data=crime)
+par(mfrow=c(2,2))
+plot(m)
+summary(m)
+```
+
+Let us eliminate observations 25 and 84: their Cook's distances are very large.  In a real-world scenario, this would need further investigation.
+
+```{r}
+crime %>% slice(c(25, 84)) %>% dplyr::select(everything())
+crime <- crime %>% slice(-c(25, 84))
 ```
 
 Our dependent variable is going to be $crmrte$.  We want to come up with a model that can predict crime rate.
@@ -99,6 +124,300 @@ Interesting causal questions:
 * Can high % of young males drive crime?
 * Can low wages cause crime?
 * Can high numbers of minorities cause crime, esp hate crime?
+
+### Utility functions
+
+We will now define some utility functions to aid our EDA.
+
+```{r}
+f_plot_one <- function(in_db_field_name,in_main_title) {
+  title_log <- paste("log of",in_main_title, sep = " ")
+  par(mfrow=c(2,2))
+  hist(in_db_field_name, main=in_main_title)
+  hist(log(in_db_field_name), main=title_log)
+  plot(in_db_field_name, main=in_main_title)
+  boxplot(in_db_field_name, main=in_main_title)
+}
+
+f_plot_two <- function(in_field_name1,in_xlabel,in_field_name2,in_y_label, in_main_title ){
+  
+
+  theme_update(plot.title = element_text(hjust = 0.5))
+
+  p1<-ggplot(crime1, aes_string(in_field_name1,in_field_name2)) + 
+         geom_point() +
+         geom_smooth(na.rm = FALSE, method = loess)
+  p1 + ggtitle(in_main_title) +xlab(in_xlabel) + ylab(in_y_label)
+}
+
+f_plot_three  <- function(in_field_x,in_xlabel,in_field_y,in_y_label){
+
+corr_val=round(cor(in_field_y, in_field_x),4)
+
+main_title=paste(in_xlabel,'v/s',in_y_label, sep = ' ')
+plot(in_field_x, in_field_y, 
+     main = main_title,
+      sub=paste("Corr. coefficient:",corr_val),
+      xlab=in_xlabel, 
+      ylab=in_y_label)
+m = lm( in_field_y ~ in_field_x) 
+abline(m)
+
+}
+
+```
+
+# Exploratory Data Analysis
+
+## Variables of interest
+
+### Crime rate
+
+Crime rate has a right skew with many outliers on the higher end.  We can use a log function to transform the distribution to be closer to normal.
+
+```{r}
+f_plot_one(crime$crmrte,"crime rate")
+# We can take logarithm to make the data more normally distributed
+crime$logcrmrte=log(crime$crmrte)
+```
+
+### Probability of arrest, conviction, prison
+
+
+```{r}
+f_plot_one(crime$prbarr,"probability of arrest")
+crime$logprbarr=log(crime$prbarr)
+```
+
+```{r}
+f_plot_one(crime$prbconv,"probability of conviction")
+crime$logprbconv=log(crime$prbconv)
+```
+
+Probability of prison has a bit of right skew, so we'll use log1p.
+
+```{r}
+f_plot_one(crime$prbpris,"probability of prison")
+#crime$logprbpris=log1p(crime$prbpris)
+```
+
+### Average sentence
+
+```{r}
+f_plot_one(crime$avgsen,"avg. sentence, days")
+```
+
+We can deal with the positive skew by taking square root.
+```{r}
+hist(sqrt(crime$avgsen))
+crime$sravgsen <- sqrt(crime$avgsen)
+```
+
+### Police per capita
+
+```{r}
+f_plot_one(crime$polpc,"police per capita")
+```
+
+We will take logarithm to deal with positive skew.
+
+```{r}
+hist(log(crime$polpc))
+crime$logpolpc <- log(crime$polpc)
+```
+
+### Density
+
+```{r}
+f_plot_one(crime$density,"density")
+```
+
+Density has positive skew too.
+
+We can normalize density by taking a cube root:
+
+```{r}
+hist((crime$density)^(1/3))
+crime$crdensity <- (crime$density)^(1/3)
+```
+
+### Tax revenue per capita
+
+```{r}
+f_plot_one(crime$taxpc,"tax revenue per capita")
+hist((crime$taxpc)^(1/3))
+crime$crtaxpc <- (crime$taxpc)^(1/3)
+```
+
+Tax revenue has one outlier beyond 120:
+
+```{r}
+#crime %>% filter(taxpc > 100) %>% dplyr::select(everything())
+```
+
+Let us remove it and replot.
+
+```{r}
+# crime <- crime %>% filter(taxpc <= 100)
+#f_plot_one(crime$taxpc,"tax revenue per capita")
+```
+
+### Minority percentage
+
+```{r}
+f_plot_one(crime$pctmin80,"minority pc")
+```
+
+The data is nicely distributed with a few outliers in the upper range.
+
+We can transform as follows:
+
+```{r}
+hist((crime$pctmin80)^(1/3))
+crime$crpctmin80 = crime$pctmin80 ^ (1/3)
+```
+
+### Young male percentage
+
+```{r}
+f_plot_one(crime$pctymle,"minority pc")
+```
+
+The data shows considerable skew.  Let us apply cube root:
+
+```{r}
+hist(crime$pctymle^(1/3))
+crime$crpctymle <- crime$pctymle^(1/3)
+```
+
+### Wages
+
+```{r}
+wages = c(crime$wcon, crime$wfed, crime$wfir, crime$wloc, crime$wmfg, crime$wser, crime$wsta, crime$wtrd, crime$wtuc)
+f_plot_one(crime$wcon, "construction wages")
+f_plot_one(crime$wfed, "federal wages")
+f_plot_one(crime$wfir, "finance and investment wages")
+f_plot_one(crime$wloc, "local gov emp wages")
+f_plot_one(crime$wmfg, "mfg wages")
+f_plot_one(crime$wser, "service ind wages")
+f_plot_one(crime$wsta, "state gov emp wages")
+f_plot_one(crime$wtrd, "trade emp wages")
+f_plot_one(crime$wtuc, "trans comm wages")
+```
+
+Most of the wages are already normally distributed.  The following are exceptions:
+
+```{r}
+crime$logwtrd <- log(crime$wtrd)
+#crime$logwfir <- log(crime$wfir)
+crime$logwmfg <- log(crime$wmfg)
+#crime$crwser <- (crime$wser)^(1/3)
+```
+
+### Mix
+
+```{r}
+f_plot_one(crime$mix,"crime mix")
+```
+
+There is some skew.  Let us apply the log transform:
+
+```{r}
+crime$logmix <- log(crime$mix)
+```
+
+
+```{r}
+#scatterplotMatrix(crime[,c("wcon", "wfed", "wfir", "wloc", "wmfg", "wser", "wsta", "wtrd", "wtuc")])
+#hist(crime[,c("wcon", "wfed", "wfir", "wloc", "wmfg", "wser", "wsta", "wtrd", "wtuc")])
+```
+
+From the scatterplot, most of the wages have normal distribution.  
+
+Let us fit an initial model.
+
+```{r}
+m = lm(logcrmrte ~ logprbarr + logprbconv + prbpris + sravgsen + logpolpc + crdensity + crtaxpc + crpctmin80 + crpctymle + logmix + wcon + wfed + wfir + wloc + logwmfg + wser + wsta + logwtrd + wtuc, data=crime)
+summary(m)
+par(mfrow=c(2,2))
+plot(m)
+```
+The initial model shows the following variables as significant:
+
+* Probability of arrest, transformed as log (logprbarr)
+* Probability of conviction, transformed as log (logprbconv)
+* Density, transformed as cube root (crdensity)
+* Percent minorities, transformed as cube root (crpctmin80)
+
+```{r}
+m = lm(logcrmrte ~ logprbarr + logprbconv + crdensity + crpctmin80, data=crime)
+summary(m)
+par(mfrow=c(2,2))
+plot(m)
+```
+
+This shows adjusted $R^2$ of 0.79, which is quite close to the fit of 0.83 we obtained by fitting all variables.
+
+$$\log{crmrte} = -5.15 -1.37\ prbarr + 275\ polpc + 0.781\ \sqrt[^3]{density} + 0.294\ \sqrt[^3]{pctmin80}$$
+Next, we can add some more variables as follows:
+
+* wfed
+* sravgsen
+* logpolpc
+* wfir
+
+```{r}
+m = lm(logcrmrte ~ logprbarr + logprbconv + crdensity + crpctmin80 + wfed + sravgsen + logpolpc + wfir, data=crime)
+summary(m)
+```
+
+And even more:
+
+* crpctymle
+
+```{r}
+m = lm(logcrmrte ~ logprbarr + logprbconv + crdensity + crpctmin80 + wfed + sravgsen + logpolpc + wfir + crpctymle, data=crime)
+summary(m)
+```
+
+It is worth checking these variables for collinearity and to look for omitted variables.  Otherwise we risk overfitting our model.
+
+```{r}
+# Run variance inflation factor
+vif(m)
+# Run principal component analysis
+pca <- prcomp(~ logprbarr + logprbconv + crdensity + 
+    crpctmin80 + wfed + sravgsen + logpolpc + wfir + crpctymle, data=crime, center = TRUE, scale.=TRUE)
+summary(pca)
+plot(pca, type="l")
+```
+
+Variance inflation factors look OK: there are no values greater than 5.  PCA analysis shows that the first 4 components explain almost all of the variance.  The remaining factors are not very relevant.
+
+```{r}
+cor(~ logprbarr + logprbconv + crdensity + 
+    crpctmin80 + wfed + sravgsen + logpolpc + wfir + crpctymle, data=crime)
+```
+
+# Bivariate EDA
+
+```{r}
+cor(c(crime$wcon, crime$wfed, crime$wfir, crime$wloc, crime$wmfg, crime$wser, crime$wsta, crime$wtrd, crime$wtuc), crime$crmrte)
+pairs(crmrte ~ wcon + wfed + wfir + wloc + wmfg + wser + wsta + wtrd + wtuc, data = crime)
+```
+
+## County and crime rate
+
+Crime seems to be uniformly distributed across the counties.
+
+```{r}
+par(mfrow = c(1, 2))
+hist(crime$county)
+west_crime <- crime %>% filter(west == 1) %>% count()
+central_crime <- crime %>% filter(central == 1) %>% count()
+other_crime <- crime %>% filter(west == 0 & central == 0) %>% count()
+barplot(c(west_crime$n, central_crime$n, other_crime$n), names.arg=c("Wst", "Ctr", "Oth"))
+```
 
 ## Arrests and crime rate
 
@@ -288,6 +607,131 @@ There is a marked increase in slope.  However, we have a wide band of crime rate
 summary(m)
 ```
 
+## Wages and crime rate
+
+As wage goes up, crime seems to go up.
+
+```{r}
+par(mfrow = c(3, 3))
+m = lm(crime$crmrte ~ crime$wcon, data=crime)
+plot(crime$wcon, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wfed, data=crime)
+plot(crime$wfed, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wfir, data=crime)
+plot(crime$wfir, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wloc, data=crime)
+plot(crime$wloc, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wmfg, data=crime)
+plot(crime$wmfg, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wser, data=crime)
+plot(crime$wser, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wsta, data=crime)
+plot(crime$wsta, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wtrd, data=crime)
+plot(crime$wtrd, crime$crmrte)
+abline(m)
+
+m = lm(crime$crmrte ~ crime$wtuc, data=crime)
+plot(crime$wtuc, crime$crmrte)
+abline(m)
+```
+
+### Checking for collinearity
+
+Let us look for pairs of variables with high correlation.
+
+```{r}
+# Build the matrix
+crime_cor_matrix <- round(cor(crime), 2)
+# It is symmetric
+crime_cor_matrix[upper.tri(crime_cor_matrix, diag=TRUE)] <- NA
+crime_cor_df <- as.data.frame(as.table(crime_cor_matrix))
+# Select pairs with high correlation
+crime_cor_df %>% 
+  filter(abs(Freq) >= 0.66) %>% 
+  arrange(desc(Freq)) %>% 
+  select(everything()) 
+```
+
+We see that $urban$ and $density$ have high correlation, so we can use one instead of both.  There is also high correlation between wages in finance and investments $wfir$ vs. trade and retail $wtrd$.  We can keep one instead of the other.
+
+### Selecting variables based on statistical significance
+
+First, we will simply try to fit all the independent variables and then remove those that do not add a lot of statistical significance.
+
+```{r}
+# Source: https://www.youtube.com/watch?v=I4z3yjoEADY
+m <- lm(crime$crmrte ~ ., crime)
+summary(m)
+```
+
+The default model has an $R^2$ value of 0.85.
+
+We see that the following variables are significant (p < 0.1):
+
+* prbarr
+* avgsen
+* polpc
+* density
+* central
+* pctmin80
+* wser
+* wsta
+* pctymle
+
+Let us try to build a newer model with the above (fewer) variables.
+
+```{r}
+m <- lm(crime$crmrte ~ prbarr + avgsen + polpc + 
+          density + central + pctmin80 + wser + wsta + pctymle,
+        crime)
+cor(crime$pctymle, crime$crmrte)
+summary(m)
+```
+
+Our $R^2$ is still 0.8, which is quite significant.
+
+Let us analyze the independent variables for causality.
+
+* prbarr: it is plausible that we have more arrests in areas with high crime (effect, not cause)
+* avgsen: Same reasoning can hold for average sentence: high crime rate can result in higher average sentences
+* polpc: It is possible that high number of police per capita is a result of high crime rate, not a cause
+* density: Density sounds like a possible cause: higher population density means higher opportunity for anonymity and lower probability of detection
+* central: Central NC has higher crime rate but this could be due to omitted variables such as higher density or urban population
+* pctmin80: Higher percentage of minorities can indicate social tension and anonymity, causing higher crime rate.
+* wser, wsta: Wages in services and state is not causal: it is probably due to omitted variables.  These wages are probably higher in urban areas due to higher minimum wage.
+* pctymle: % young male is probably causal.  Young men are known to engage in risky, aggressive behavior that correlates well with crime rate.
+
+So our causal variables can be:
+* density
+* pctmin80
+* pctymle
+
+Let us fit the model:
+
+```{r}
+m <- lm(crime$crmrte ~ density + pctmin80 + pctymle,
+        crime)
+summary(m)
+plot(m)
+```
+
+The $R^2$ is still 0.6, which is quite high for only three predictors.
+
 Possible policy suggestions:
 
 * Are we arresting criminals?
@@ -299,3 +743,4 @@ Possible policy suggestions:
 * Are low wages driving crime?
 * Is there hate crime in the area ("mix"), and is it correlated with % minority?
 * How is crime connected to % young male?
+
