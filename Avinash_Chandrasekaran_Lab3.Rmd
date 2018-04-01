@@ -84,23 +84,18 @@ This section was filled in after a first pass at the variables.  This is so that
 There is a large outlier for wages in service industry, $wser$.  Observation #84 has very large influence as shown by Cook's distance.
 
 ```{r}
+par(mfrow=c(2,2))
 m = lm(log(crime_data$crmrte) ~ crime_data$wser)
+plot(m, which=5)
+m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
+plot(m, which=5)
+m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
 plot(m, which=5)
 ```
 
 Next, let us consider $density$.  Observation #79 has Cook's distance beyond 1, meaning extreme leverage:
 
-```{r}
-m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
-plot(m, which=5)
-```
-
 Finally, we consider $polpc$.  Police per capita has positive skew.  Taking log helps, but we still see a very large outlier.  Fitting a model, we see that observation #51 has Cook's distance beyond 1.  This is a lot of leverage:
-
-```{r}
-m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
-plot(m, which=5)
-```
 
 Here are all the outlier observations:
 
@@ -173,6 +168,7 @@ hist(crime_data$crmrte, main = "Crime rate",
 boxplot(crime_data$crmrte, main = "Boxplot")
 hist(log(crime_data$crmrte), main = "Crime rate", 
      xlab="Log of Crime Rate")
+crime_data$log_crmrte = log(crime_data$crmrte)
 ```
 
 Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
@@ -252,6 +248,7 @@ Note: In our first pass, we found an influential outlier with very low density a
 
 ```{r}
 f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
+crime_data$log_density = log(crime_data$density)
 ```
 
 The histogram of density shows quite a bit positive skew. The log transformation shows a more promising normal distribution.  There are no outliers with large leverage as measured by Cook's distance.
@@ -262,6 +259,7 @@ We see high positive correlation with crime rate.  It may be that high populatio
 
 ```{r}
 f_describe_col(crime_data$taxpc, do_log=TRUE, plot_model=TRUE)
+crime_data$log_taxpc = log(crime_data$taxpc)
 ```
 
 Tax revenue also shows positive skew, with one outlier indicating high tax revenue per capita (>100).  It does not show a lot of leverage, however, so we will keep the value.
@@ -371,7 +369,9 @@ print(vif(m))
 
 Again, no VIF is above 5.  This procedure also does not eliminate any wage categories.
 
-We can take a call, and choose $wcon$ as a proxy for a first model.  We can include other wages in a second model.
+A general remark is in order for the positive correlation of crime across the wage categories.  Higher wages may indicate higher wealth or a different omitted variable, and cannot be causal in and of themselves.
+
+We will *not* include wages in a first model.
 
 ```{r}
 f_describe_col(crime_data$wcon, plot_model=TRUE)
@@ -426,7 +426,7 @@ Here is a summary table of variables used in our models.
 | central  | N/A        |         |         |         | Categ, sep. model |
 | urban    |            |         |         |         | Cor. with density |
 | pctmin80 | sqrt       | Y       | Y       | Y       | Causal  |
-| wcon     |            | Y       | Y       | Y       | Proxy for wages |
+| wcon     |            |         | Y       | Y       | Omit var: wealth |
 | wtuc     |            |         |         | Y       | Low corr. found |
 | wtrd     |            |         | Y       | Y       |         |
 | wfir     |            |         | Y       | Y       |         | 
@@ -436,28 +436,64 @@ Here is a summary table of variables used in our models.
 | wsta     |            |         |         | Y       | Low corr. found |
 | wloc     |            |         | Y       | Y       |         |
 | mix      | log        |         |         | Y       | No corr. found |
-| pctymle  | sqrt       | Y       | Y       | Y       | Causal  |
+| pctymle  | sqrt       | Y       | Y       | Y       | Causal, weak cor  |
 
-## Data Transformation
-Based on the univariate analysis performed above, we can opt to take the following transformations of the variables to make better analysis and judgement calls:
+## 5. Models
 
-Log transformation of the Crime Rate, Police per Capita, Density per sq. mile, Tax revenue per capita
-And finally scaling the percent (percent young male) and probabilities (arrest, conviction and prison sentence) to be between 0-100
+As outlined in the table above, here are three models we propose.
+
+The first model includes what we think would be only causal variables:
+
+$$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ \sqrt{pctmin80} + \beta_6\ \sqrt{pctymle}$$
+
+Let us fit the model:
+
 ```{r}
-crime_data$log_crmrte = log(crime_data$crmrte)
-crime_data$log_density = log(crime_data$density)
-crime_data$log_polpc = log(crime_data$polpc)
-crime_data$log_taxpc = log(crime_data$taxpc)
-crime_data$adj_pctymle = crime_data$pctymle *100
-crime_data$adj_prbarr = crime_data$prbarr *100
-crime_data$adj_prbconv = crime_data$prbconv *100
-crime_data$adj_prbpris = crime_data$prbpris *100
-
+model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
+              sqrt_pctmin80 + sqrt_pctymle, data=crime_data)
+summary(model1)
+par(mfrow=c(2,2))
+plot(model1)
 ```
 
-A final sumary table of our dataset with all transformation and data cleansing performed is displayed below:
+The model shows a fit of about 72% as measured by adjusted $R^2$.  Observation #25 shows a large deviation from the normal, but is still not an outlier as per Cook's distance.
+
+It is interesting that the model does not consider $pctymle$ to be a significant predictor.
+
+Next, let us include some more variables, as model 2.
+
+```{r}
+model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
+              sqrt_pctmin80 + sqrt_pctymle
+            + log_polpc + log_taxpc + wcon + wtrd + wfir + 
+                  wser + wmfg + wfed + wloc, data=crime_data)
+summary(model2)
+par(mfrow=c(2,2))
+plot(model2)
+```
+
+The fit improves to 78% (adjusted $R^2$).  The only wages that are significant are $wfir$ and $wser$.  $taxpc$ is not significant either.
+
+Observation #25 causes considerable problems to this model as well.
+
+We will now build a third model that includes almost all the variables:
+
+```{r}
+model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
+              sqrt_pctmin80 + sqrt_pctymle
+            + log_polpc + log_taxpc + wcon + wtrd + wfir + 
+                  wser + wmfg + wfed + wloc
+            + prbpris + avgsen + wtuc + wsta + mix,
+            data=crime_data)
+summary(model3)
+par(mfrow=c(2,2))
+plot(model3)
+```
+
+This tops fit at about 0.79 (adjusted $R^2$).  It also says $avgsen$ and $wser$ are significant.
+
 ```{r mylatextable, results = "asis"}
-stargazer(crime_data, title = "Descriptive Statistics", digits=1)
+stargazer(model1, model2, model3, title = "Regression models")
 ```
 
 ## Bi-variate Analysis
@@ -465,9 +501,9 @@ stargazer(crime_data, title = "Descriptive Statistics", digits=1)
 The correlation plot between the different variables is as follows:
 ```{r}
 corrplot(cor(crime_data[,
-                        c("log_crmrte", "adj_prbarr", "adj_prbconv", "adj_prbpris", "avgsen", 
+                        c("log_crmrte", "prbarr", "prbconv", "prbpris", "avgsen", 
                           "log_polpc", "log_density", "log_taxpc", "pctmin80", "mix", 
-                          "adj_pctymle")]), type = "upper")
+                          "pctymle")]), type = "upper")
 corrplot(cor(crime_data[,
                         c("log_crmrte", "wcon", "wtuc", "wtrd", "wfir", "wser", "wmfg", "wfed", 
                           "wsta", "wloc")]), type = "upper")
@@ -491,15 +527,15 @@ The positive correlation observed makes sense for the following reasons:
 3) More crimes leads to more police presence in a particular county to monitor and reduce crime rate
 
 The negative correlations can be further observed using:
-```{r}
+```
 par(mfrow=c(1,2))
-plot(crime_data$adj_prbarr, crime_data$log_crmrte,
+plot(crime_data$prbarr, crime_data$log_crmrte,
      main="Probability of arrest", ylab="Log Crime rate", xlab="Prob on arrest")
-abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbarr))
-plot(crime_data$adj_prbconv, crime_data$log_crmrte,
+abline(lm(crime_data$log_crmrte ~ crime_data$prbarr))
+plot(crime_data$prbconv, crime_data$log_crmrte,
      main="Probability of conviction vs. crime rate", ylab="Log Crime rate", 
      xlab="Prob on conv")
-abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbconv))
+abline(lm(crime_data$log_crmrte ~ crime_data$prbconv))
 ```
 As seen above, as the probability of arrests and conviction go down, there are more criminals on the loose which leads to higher crime rates observed
 
@@ -519,7 +555,7 @@ It is common knowledge that areas with higher density have more crime. Therefore
 Similarly we hypothesized that crime rate is high among minority and young male population, so we round off our model with
 that factored in as well.
 
-```{r}
+```
 model1 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80, data=crime_data)
 model1$coefficients
 par(mfrow=c(2,2))
@@ -533,7 +569,7 @@ summary(model1)$adj.r.squared
 high probability of arrests and conviction act as deterrents to crime.
 
 $$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2 (YoungMale) + \beta_3(Minority) + \beta_4(Conviction) + \beta_5 (Arrest) + \beta_6 (Tax) + u$$
-```{r}
+```
 model2 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+
             adj_prbconv+taxpc, data=crime_data)
 model2$coefficients
@@ -546,7 +582,7 @@ summary(model2)$r.squared
 ## Model 3
 everything
 
-```{r}
+```
 model3 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+adj_prbconv+
               taxpc+log_polpc, data=crime_data)
 model3$coefficients
@@ -556,7 +592,7 @@ AIC(model3)
 summary(model3)$r.squared
 ```
 
-```{r results = "asis"}
+```
 stargazer(model1, model2, model3)
 ```
 # 5. Discussion of omitted variables (Identify what you think are the 5-10 most important omitted variables that bias results you care about.)
@@ -566,8 +602,3 @@ Education
 Unemployment
 
 Poverty
-
-
-```{r}
-
-```
