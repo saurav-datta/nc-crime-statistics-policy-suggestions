@@ -1,725 +1,495 @@
 ---
-title: "Datta_Saurav_Lab3_Draft"
+title: "Lab3 Draft, w203: Statistics for Data Science"
 author: "Saurav Datta"
-date: "3/24/2018"
-output:
-  pdf_document: default
-  html_document: default
+date: "April 01, 2018"
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80),tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# 1. Introduction
 
-```{r}
-#install.packages("sqldf")
-# Sys.setenv(JAVA_HOME='/Library/Java/JavaVirtualMachines/jdk1.8.0_151.jdk/Contents/Home')
-# install.packages("rJava")
-# install.packages("RH2")
-#install.packages("gridExtra")
+Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime
+statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand
+the determinants of crime and to generate policy suggestions that are applicable to local government.
 
+The data provided consists of 25 variables and 91 different observations collected in a given year. Moreover the dataset
+obtained is a single cross-section of data collected from variety of different sources. For the analysis made
+in this research, we will assume that the data collected from different counties in NC were randomly sampled.
 
+Our primary analysis of data will include ordinary least squares regressions to make casual estimates and we will clearly 
+explain how omitted variabled may affect our conclusions. We begin our research by conducting exploratory analysis of the
+dataset to gain a better understanding of the variables.
 
-```
+# 2. Exploratory Analysis
 
-```{r}
-library(sqldf)
-# library(RH2)
-library(ggplot2)
-library(gridExtra)
-library(stargazer)
+## Data processing
+
+```{r, include= FALSE}
 library(car)
-
-```
-
-```{r}
-getwd()
-setwd("/Users/sdatta/Documents/1. Personal/MIDS/W203/Course material/Lab3")
-
-```
-
-```{r}
-#db = dbConnect(SQLite(), dbname="lab3.sqllite")
-#sqldf("attach 'lab3.sqllite' as new")
-```
-
-
-
-```{r}
-#dbRemoveTable(db, "crime0")
-
-```
-
-
-```{r}
-crime0=read.csv("crime_v2.csv",
-                    header = TRUE
-                  )
-crime1=crime0
-```
-
-
-```{r}
-sqldf("select * from crime1 limit 5")
-```
-#### Converting prbconv from factor to numeric
-
-We see that column prbconv is factor datatype
-
-```{r}
-crime1$prbconv_cast=as.numeric(as.matrix(crime1$prbconv))
-
-```
-
-
-```{r}
-crime_tmp=sqldf("SELECT * FROM crime1 WHERE NOT ( prbconv_cast<0 OR  prbarr<0 or prbpris<0)")
-crime1=crime_tmp
-sqldf("SELECT count(*) from crime1")
-```
-
-#### Defining common function
-
-```{r}
-f_check_null <- function(in_field_name ){
-  sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM crime1 WHERE (%s IS \"NA\" or %s IS NULL)", in_field_name,in_field_name)
-  sqldf(sql)
-}
-
-```
-
-```{r}
-f_plot_one <- function(in_db_field_name,in_main_title ){
-  
-  title_log=paste("log of",in_main_title, sep = " ")
-  
-  par(mfrow=c(2,2))
-  hist(in_db_field_name, main=in_main_title)
-  hist(log(in_db_field_name), main=title_log)
-  boxplot(in_db_field_name, main=in_main_title)
-
-}
-
-```
-
-```{r}
-f_plot_two <- function(in_field_name1,in_xlabel,in_field_name2,in_y_label, in_main_title ){
-  
-
-  theme_update(plot.title = element_text(hjust = 0.5))
-
-  p1<-ggplot(crime1, aes_string(in_field_name1,in_field_name2)) + 
-         geom_point() +
-         geom_smooth(na.rm = FALSE, method = loess)
-  p1 + ggtitle(in_main_title) +xlab(in_xlabel) + ylab(in_y_label)
-}
-
-```
-
-
-```{r eval=FALSE, include=FALSE}
-  # ggplot(crime1, aes(regionofcrime,crmrte)) + 
-  #          geom_boxplot()
-
-# p2<-ggplot(crime1, aes_string(in_field_name1,in_field_name2)) +
-  #        geom_count()
-  # p2 + ggtitle(in_main_title) +xlab(in_xlabel) + ylab(in_y_label)
-  # 
-  # grid.arrange(p1, p2, nrow=1,ncol=2)
-```
-
-```{r}
-f_plot_three  <- function(in_field_x,in_xlabel,in_field_y,in_y_label){
-
-corr_val=round(cor(in_field_y, in_field_x),4)
-
-main_title=paste(in_xlabel,'v/s',in_y_label, sep = ' ')
-plot(in_field_x, in_field_y, 
-     main = main_title,
-      sub=paste("Corr. coefficient:",corr_val),
-      xlab=in_xlabel, 
-      ylab=in_y_label)
-m = lm( in_field_y ~ in_field_x) 
-abline(m)
-
-}
-```
-
-```{r}
-sqldf("select count(8) from crime1 where west=1  and central=1")
-```
-We see that the same county is marked as both west and central.
-
-
-
-
-#### Analyzing regions
-```{r Handling unknown regions}
-crime_tmp = sqldf("SELECT *, CASE WHEN urban=1 THEN \'URBAN\'
-                                ELSE \'RURAL\'
-                          END AS 'urbanorrural'
-                FROM crime1" 
-)
-
-##END regionofcrime
-
-```
-
-```{r Overwriting actual dataframe}
-crime1=crime_tmp
-```
-
-
-```{r}
-sqldf("SELECT urbanorrural as urbanorrural, count(8) as countofcrimes from crime1 GROUP BY urbanorrural"
-     )
-```
-
-#### Analyzing crmrte
-
-
-```{r}
-f_check_null("crmrte")
-f_plot_one(crime1$crmrte,"crimes committed per person")
-crime1$logcrmrte=log(crime1$crmrte)
-
-```
-
-
-Analyzing the 6 records with missing crmrte values
-```{r}
-sqldf("SELECT * FROM crime1 WHERE (crmrte IS \"NA\" or crmrte IS NULL) ")
-```
-We see that all relevant columns of these 6 records are NA. So we can safely delete them
-
-```{r}
-crime_tmp=sqldf( c("DELETE FROM crime1 WHERE crmrte IS NULL",
-         "SELECT * FROM crime1"
-         )
-)
-```
-
-```{r}
-crime1=crime_tmp
-sqldf("SELECT count(*) FROM crime1 ")
-```
-
-
-#### Reanalyzing regions after deleting NAs
-
-```{r}
-sqldf("SELECT urbanorrural as urbanorrural, count(8) as countofcrimes from crime1 GROUP BY urbanorrural"
-     )
-```
-#### Analyzing prbarr
-
-```{r}
-f_check_null("prbarr")
-f_plot_one(crime1$prbarr,"probability of arrest")
-```
-
-
-#### Analyzing prbconv_cast
-
-
-```{r}
-
-f_check_null("prbconv_cast")
-f_plot_one(crime1$prbconv_cast,"probability of conviction")
-
-```
-
-
-#### Analyzing avgsen
-
-
-```{r}
-
-f_check_null("avgsen")
-f_plot_one(crime1$avgsen,"avg. sentence, days")
-crime1$logavgsen =  log(crime1$avgsen)
-
-```
-
-#### Analyzing polpc
-
-
-```{r}
-f_check_null("polpc")
-f_plot_one(crime1$polpc,"police per capita")
-crime1$logpolpc =  log(crime1$polpc)
-
-```
-
-
-
-#### Analyzing density
-
-We see that log1p of density is closer to normal distribution than either log or exp ( tried it offline).
-
-```{r}
-f_check_null("density")
-f_plot_one(crime1$density,"people per sq. mile")
-
-hist(log1p(crime1$density))
-
-crime1$log1pdensity=log1p(crime1$density)
-
-```
-
-
-#### Analyzing taxpc
-
-```{r}
-
-f_check_null("taxpc")
-f_plot_one(crime1$taxpc,"tax revenue per capita")
-
-```
-Outlier of taxpc=120
-
-#### Analyzing Crimes committed per person by region
-```{r}
-# 
-f_plot_two("urbanorrural","Urban or rural","logcrmrte","Crimes committed per person","Crimes per person by Region of crime")
-
-```
-
-#### Analyzing Crimes committed per person by region
-
-```{r}
-f_plot_two("county","County identifier","logcrmrte","Log of crimes committed per person","Log of crimes per person by County identifier")
-
-```
-
-
-```{r}
-sqldf("SELECT county,crmrte,logcrmrte FROM crime1 WHERE logcrmrte>=-2.5  ")
-```
-
-#### Analyzing percent minority
-
-```{r}
-
-f_check_null("pctmin80")
-f_plot_one(crime1$pctmin80,"perc. minority, 1980")
-
-```
-
-#### Analyzing percent minority by region
-
-```{r}
-
-f_plot_two("urbanorrural","Region of crime","pctmin80","Percent minority","Percent minority by Region of crime")
-
-
-```
-
-#### Analyzing pctymle
-
-```{r}
-f_check_null("pctymle")
-f_plot_one(crime1$pctymle,"Percent young male")
-
-```
-
-
-#### Analyzing pctymle by region
-```{r}
-
-
-f_plot_two("urbanorrural","Region of crime","pctymle","Percent young male","Percent young male by Region of crime")
-
-```
-
-We see that the UKNOWN region has the highest percent of young male
-
-
-```{r}
-f_plot_two("county","County identifier","pctymle","Percent young male","Percent young male by County identifier")
-
-```
-
-```{r}
-sqldf("SELECT county,pctymle from crime1 WHERE pctymle>=0.20")
-```
-
-
-```{r}
-scatterplotMatrix(crime1[,c("logcrmrte","prbarr",  "prbconv_cast", "logavgsen")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("logcrmrte","prbpris",  "logavgsen")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("logcrmrte","logpolpc",  "log1pdensity")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("logcrmrte","pctmin80",  "wcon")], diagonal = "histogram")
-
-```
-
-
-```{r}
-scatterplotMatrix(crime1[,c("crmrte","mix","pctymle")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("crmrte","wtuc",  "wtrd")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("crmrte","wfir",  "wser")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("crmrte","wmfg",  "wfed")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("crmrte","wsta",  "wloc")], diagonal = "histogram")
-
-```
-
-```{r}
-scatterplotMatrix(crime1[,c("crmrte","mix")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("crmrte","wtuc",  "wtrd")], diagonal = "histogram")
-scatterplotMatrix(crime1[,c("crmrte","wfir",  "wser")], diagonal = "histogram")
-
-```
-
-
-```{r Relevant pairs, eval=FALSE, include=FALSE}
-crmrte v/s prbarr
-crmrte v/s pctymle
-crmrte v/s prbconv
-crmrte v/s prbpris ( low )
-prbpris v/s avgsen ( low )
-crmrte v/s polpc
-crmrte v/s density
-crmrte v/s pctmin80
-crmrte v/s wcon
-pctmin80 v/s wcon
-crmrte v/s wtuc,wtuc,wfir,wmfg,wfed,wsta,wloc
-crmrte v/s wser
-crmrte v/s wser
-crmrte v/s wser
-
-
-```
-
-```{r}
-# corr_val=round(cor(crime1$logcrmrte, crime1$prbarr),4)
-# 
-# main_title=paste(in_xlabel,'v/s',in_y_label, sep = ' ')
-# plot(crime1$prbarr, crime1$logcrmrte, 
-#      main = main_title,
-#       sub=paste("Corr. coefficient:",corr_val),
-#       xlab=in_xlabel, 
-#       ylab=in_y_label)
-# m = lm(in_field_x ~ in_field_y) 
-# abline(m)
-
-```
-
-
-```{r fig.height=7, fig.width=5}
-par(mfrow = c(4, 2))
-
-f_plot_three(crime1$prbarr, "Probability of arrest",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$pctymle, "% of young males",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$prbconv_cast, "Prob of conviction",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$logavgsen, "Log of avg sentence",crime1$logcrmrte,"Crimes committed per person" )
-
-```
-
-
-
-```{r fig.height=5, fig.width=5}
-par(mfrow = c(3, 2))
-
-f_plot_three(crime1$prbpris, "Prob of imprisonment",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$logavgsen, "Average sentence",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$logpolpc, "Police per capita",crime1$logcrmrte,"Crimes committed per person" )
-```
-
-
-```{r fig.height=7, fig.width=5}
-par(mfrow = c(3, 2))
-
-f_plot_three(crime1$pctmin80, "Perc. minority",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$log1pdensity, "People per sq. mile",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$wcon, "Weekly wage, construction",crime1$logcrmrte,"Crimes committed per person" )
-```
-
-
-
-```{r fig.height=7, fig.width=5}
-par(mfrow = c(3, 2))
-
-f_plot_three(crime1$wtuc, "Wkly wge, trns, util, commun",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$wfir, "Wkly wge, fin, ins, real est",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$wser, "Wkly wge, service industry",crime1$logcrmrte,"Crimes committed per person" )
-```
-
-
-
-```{r fig.height=7, fig.width=5}
-par(mfrow = c(3, 2))
-
-f_plot_three(crime1$wmfg, "Wkly wge, manufacturing",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$wfed, "Wkly wge, fed employees",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$wsta, "Wkly wge, state employees",crime1$logcrmrte,"Crimes committed per person" )
-
-f_plot_three(crime1$wloc, "Wkly wge, local gov emps",crime1$logcrmrte,"Crimes committed per person" )
-
-```
-
-
-
-
-
-
-###Strong positive correlation:
-crmrte v/s polpc
-crmrte v/s density
-crmrte v/s wcon
-crmrte v/s wser
-crmrte v/s wmfg
-crmrte v/s wfed
-crmrte v/s wloc
-
-
-####Weak positive correlation:
-crmrte v/s pctymle
-crmrte v/s percent of minority
-crmrte v/s wkly wge, fin, ins, real est
-crmrte v/s wtuc
-
-
-
-####Strong negative correlation:
-crmrte v/s prbarr
-
-
-####Weak negative correlation:
-crmrte v/s prbconv
-
-##### Model 1: Crime related variables
-
-log(crime rate) = log(beta0 + beta1*polpc + beta2*density)
-
-
-```{r}
-logcrmrte.lm1 = lm( logcrmrte ~ logpolpc + log1pdensity + prbarr , data=crime1)
-logcrmrte.lm1
-```
-
-
-```{r}
-plot(logcrmrte.lm1, which =1)
-
-```
-
-The regression lines is close to 0 residual. This indicates there is a linear relationship among logcrmrte with  logpolpc + log1pdensity.
-
-
-```{r}
-plot(logcrmrte.lm1, which =2)
-
-```
-
-The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
-
-```{r}
-plot(logcrmrte.lm1, which =4)
-
-```
-None of the points have Cook's distance greater than 1. However, Points 5, 23 and 72 have higher leverage than all other points. Let us observe the points:
-
-```{r}
-crime1[5,]
-crime1[23,]
-crime1[72,]
-
-```
-
-#### Checking for multicollinearity
-```{r}
-## Reference: https://www.r-bloggers.com/collinearity-and-stepwise-vif-selection/
-## https://datascienceplus.com/multicollinearity-in-r/
-vif(logcrmrte.lm1)
-```
-Since vif output for both th variable sis less than 10, there does not exist a multicollinearity between the variables.
-
-
-
-
-##### Model 2: Wage variable wcon
-
-log(crime rate) = log(beta0 + beta1*wcon + error)
-
-
-```{r}
-logcrmrte.lm2 = lm( logcrmrte ~ wcon, data=crime1)
-logcrmrte.lm2
-```
-
-
-
-```{r fig.height=5, fig.width=5}
-par(mfrow =c(2,2))
-plot(logcrmrte.lm2,which=c(1,2,4))
-par(mfrow =c(1,1))
-```
-
-The regression lines is close to 0 residual. This indicates there is a linear relationship among logcrmrte with  wcon.
-The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
-None of the points have Cook's distance greater than 1. 
-
-##### Model 2: Wage variable wmfg
-
-
-log(crime rate) = log(beta0 + beta1*wmfg + error)
-
-
-```{r}
-logcrmrte.lm3 = lm( logcrmrte ~ wmfg, data=crime1)
-logcrmrte.lm3
-```
-
-
-
-```{r fig.height=5, fig.width=5}
-par(mfrow =c(2,2))
-plot(logcrmrte.lm3,which=c(1,2,4))
-par(mfrow =c(1,1))
-```
-
-The regression lines is varying from residual 0. This indicates there is no linear relationship between logcrmrte and wmfg.
-The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
-None of the points have Cook's distance greater than 1.
-
-
-##### Model 3: All variables with strong positive or negative correlation
-
-```{r}
-logcrmrte.lm4 = lm( logcrmrte ~ logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc, data=crime1)
-logcrmrte.lm4
-```
-
-
-```{r}
-plot(logcrmrte.lm4, which =1)
-
-```
-
-The regression lines is close to 0 residual. This indicates there is a linear relationship between logcrmrte and (logpolpc + log1pdensity +prbarr + wcon + wser  + wfed + wloc)
-
-
-```{r}
-plot(logcrmrte.lm4, which =2)
-
-```
-
-The Normal QQ plot is roughly on a straight line. This indicates that our data has been sourced from a normal distribution 
-
-```{r}
-plot(logcrmrte.lm4, which =4)
-
-```
-None of the points have Cook's distance greater than 1. However, Points 5, 23 and 72 have higher leverage than all other points. 
-
-```{r}
-vif(logcrmrte.lm4)
-```
-There is no multicollinearity since none of the vif values are more than 10.
-
-##### Comparing the models
-
-```{r}
-
-summary(logcrmrte.lm1)$r.squared 
-summary(logcrmrte.lm2)$r.squared 
-summary(logcrmrte.lm3)$r.squared 
-summary(logcrmrte.lm4)$r.squared 
-
-```
-
-Based on the r-squared output logcrmrte.lm1 or logcrmrte.lm3 is preferred.
-
-```{r}
-## The Akaike information criterion (AIC) is an estimator of the relative quality of statistical models for a given set of data. Given a collection of models for the data, AIC estimates the quality of each model, relative to each of the other models. Thus, AIC provides a means for model selection.
-AIC(logcrmrte.lm1, logcrmrte.lm2, logcrmrte.lm3, logcrmrte.lm4)
-```
-
-
-Based on the AIC output logcrmrte.lm1 or logcrmrte.lm3 is preferred.
-
-
-```{r, results='asis'}
-stargazer(logcrmrte.lm1, logcrmrte.lm2,logcrmrte.lm3, type = "latex", 
-          report = "vc", # Don't report errors, since we haven't covered them
-          title = "Linear Models Predicting Crime rate per persone",
-          keep.stat = c("rsq", "n"),
-          omit.table.layout = "n") # Omit more output related to errors
-
-```
-
-
-```{r}
-crime_west=sqldf("SELECT * FROM crime1 WHERE west=1")
-
-sqldf("SELECT COUNT(*) AS count_crime_west FROM crime_west")
-
-```
-
-```{r}
-crime_central=sqldf("SELECT * FROM crime1 WHERE central=1")
-
-sqldf("SELECT COUNT(*) AS count_crime_central FROM crime_central")
-
-```
-
-
-```{r}
 library(corrplot)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(dplyr)
+library(sqldf)
+```
 
-corrplot(cor(crime_west[,
-                        c("logcrmrte","crmrte", "prbarr", "prbconv_cast", "prbpris", "logavgsen", 
-                          "logpolpc", "log1pdensity", "taxpc", "pctmin80", "wcon", 
-                          "mix", "pctymle")]), type = "upper")
+```{r}
+# Read the csv file
+crime_data_raw = read.csv("crime_v2.csv")
+
+# Print out summary of the data read (excluded from the report)
+#summary(crime_data_raw)
+#str(crime_data_raw)
+```
+There appears to be 6 rows of NA's across all variables. We also notice that 'prbconv' is a factor while the rest of the
+variables are numeric. 
+
+```{r}
+# Remove NA rows
+crime_data = na.omit(crime_data_raw)
+
+# Print out all column names (excluded from the report)
+#colnames(crime_data)
+
+# convert factor to numeric for variable prbconv
+crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
+```
+There are a total of 91 observations across 25 different variables. We will now explore each of the variables collected in
+the data
+
+County and Year variables just represent the different counties and the year the data was collected. As such these don't
+require further analysis.
+
+```{r}
+crime_data %>% group_by(county) %>% filter(n()>1)
+crime_data = distinct(crime_data)
+```
+
+We also noticed that one of the rows was duplicated in the dataset. As this could potentially affect our regression
+analysis, we decided to remove the duplicated entry.
+
+## Individual Variable Analysis
+
+### Crimes committed per person
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$crmrte, main = "Crimes committed per person", 
+     xlab="Crime Rate")
+hist(log(crime_data$crmrte), main = "Crimes committed per person", 
+     xlab="Log of Crime Rate")
+```
+The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively
+skewed to the left. We can take the log transformation which makes the variable appear more normally distributed. As a
+result, for our modeling, we will stick with using the log of the crime rate from here on.
+
+### Probability of arrest
+```{r}
+hist(crime_data$prbarr, main = "Histogram of Probability of arrest", 
+     xlab="arrest probability")
+summary(crime_data$prbarr)
+```
+The plot looks fairly normal with some values showing above 1.0 which seems odd for a probability statistic. We likely have
+to pay attention to this variable in our analysis later. 
+
+### Probability of conviction
+```{r}
+hist(crime_data$prbconv, main="Histogram of Probability of convictions", 
+     xlab="conviction probability")
+summary(crime_data$prbconv)
+```
+The histogram plot doesn't look normal with more positive/left skew observed in the data. Moreover, plenty of values appear
+above 1 which again seems odd considering this is a probability that is supposed to be between 0 and 1. 
+
+Instead of excluding all values above 1, we likely have to assume these higher values denote high changes of getting
+convicted in our analysis. From the definition of these terms provided, probability of arrest is proxied by the ratio of
+of the arrests to offenses. And probability of conviction is proxied by ration of convictions to arrests, probability of 
+prison sentence is proxied by convictions resulting in prison to total convictions. Since these are all "ratios" and not
+true probabilities, we decided to not exclude and remove these values from the dataset.
+
+Taking the log transformation of this statistics doesn't make much sense either. 
+
+### Probability of prison sentence
+```{r}
+hist(crime_data$prbpris, main = "Histogram of Probability of prison sentence", 
+     xlab="prison sentence prob")
+```
+This histogram plot looks fairly normal and we don't observe any weird values. 
+
+### Average sentence days
+```{r}
+hist(crime_data$avgsen, main="Histogram of Average sentence in days", 
+     xlab="avg sentence")
+```
+The average sentence in days looks slightly positive skewed. There appears to be an outlier with some values appearing
+greater than 20 days. 
+
+### Police per Capita
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$polpc, main="Histogram of Police per capita", 
+     xlab="police per capita")
+hist(log(crime_data$polpc), main="Histogram of Police per capita", breaks=20,
+     xlab="Log of police per capita")
+summary(crime_data$polpc)
+```
+The histogram of police per capita appears to be postively skewed with some outlier on the far right closer to 0.01. Taking
+the log of the metric makes the plot look more normal. The log transformation will likely be useful to examine the effects
+of police presence on crime.
+
+### People per sq. mile
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$density, main="Histogram of density", 
+     xlab="density")
+hist(log(crime_data$density), main="Histogram of density", breaks=20,
+     xlab="log density")
+summary(crime_data$density)
+crime_data = filter(crime_data, density>0.01)
+```
+The histogram of density shows lot of positive skew. The log transformation shows a more promising normal distribution
+whereas it is skewed more towards the right due to a min value that seems out of place. We will continue to use the log
+value but pay heed to the min value for anamolies.
+
+We also observe one extreme outlier value of 0.000020342. This seems like an unlikely value for people per square mile
+and we are thus removing it from consideration.
+
+
+### Tax revenue per capita
+```{r}
+summary(crime_data$taxpc)
+par(mfrow=c(1,2))
+hist(crime_data$taxpc, main="Histogram of tax revenue per capita", breaks=20,
+     xlab="tax review per capita")
+hist(log(crime_data$taxpc), main="Histogram of tax revenue per capita", 
+     breaks=20,
+     xlab="Log of tax review per capita")
+```
+The tax revenue summary indicates a max value of 120, which might be a outlier assuming max of 100. The histogram is
+sligtly positively skewed on the left and the log transformation appears to be normal yet still retaining small skew
+towards the left
+
+### Urban population
+```{r}
+sum(crime_data$urban == 1)
+boxplot(crime_data$crmrte ~ crime_data$urban, ylab="Crime Rate",
+        main="Crime Rate in rural vs. urban county",
+        names=c("Rural", "Urban"))
+
+```
+There appears to be only 8 counties that are classified as urban in NC
+
+When we compare the crime rates between rural and urban centers, it appears about 3 times higher in urban counties than rural counties. However there are only 8 data points for urban counties, so this might not be enough to devote serious consideration into this variable.
+
+```{r}
+boxplot(crime_data$density ~ crime_data$urban, ylab="Density",
+        main="Density in Rural vs. Urban counties", 
+        names=(c("Rural", "Urban")))
+```
+As expected the density of population is higher in urband couties as compared to rural counties.
+
+### Percent minority
+```{r}
+hist(crime_data$pctmin80, main="Histogram of percent minority", breaks=20,
+     xlab="percent of minority")
+```
+There doesn't seem to be anything odd about the percent of minority as calculated in 1980. Data and plot seems as expected. 
+### Wage distribution
+```{r}
+par(mfrow=(c(3,3)))
+hist(crime_data$wcon, breaks=20,
+     main="Hist of wcon",ylab="Frequency", xlab="wagecon")
+hist(crime_data$wtuc, breaks=20,
+     main="Hist of wtuc",xlab="wagetuc", ylab="")
+hist(crime_data$wloc, breaks=20,
+     main="Hist of wloc",xlab="wageloc", ylab="")
+hist(crime_data$wtrd, breaks=20,
+     main="Hist of wtrd",ylab="Frequency", xlab="wagetrd")
+hist(crime_data$wfir, breaks=20,
+     main="Hist of wfir",xlab="wagefir", ylab="")
+hist(crime_data$wser, breaks=20,
+     main="Hist of wser",xlab="wageser", ylab="")
+hist(crime_data$wmfg, breaks=20,
+     main="Hist of wmfg",ylab="Frequency", xlab="wagemfg")
+hist(crime_data$wfed, breaks=20,
+     main="Hist of wfed",xlab="wagefed", ylab="")
+hist(crime_data$wsta, breaks=20,
+     main="Hist of wsta",xlab="wagesta", ylab="")
+
+```
+Most of the wage variables conform to normal distributions.
+```{r}
+summary(crime_data$wser)
+crime_data= filter(crime_data, wser<2177)
+```
+Wage in service industry does seem to have one strange outlier that is causing some skewness in the plot.
+We believe this is likely an error and are thus removing it from consideration.
+
+
+### Offense Mix & Percent of young males
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$mix, main="Histogram of offense mix",
+     xlab="offense mix, f2f/other")
+hist(log(crime_data$mix), main="Histogram of offense mix",
+     xlab="Log of offense mix")
+```
+Log transformation of offense mix is more normal while the percent of young males has a heavy left positive skew regardless of the log transformation
+
+```{r}
+par(mfrow=c(1,2))
+hist(crime_data$pctymle, main="Hist of percent of young males",
+     xlab="pct young males")
+hist(log(crime_data$pctymle), main="Histogram of percent of young males",
+     xlab="Log of pct young males")
+```
+
+## Data Transformation
+Based on the univariate analysis performed above, we can opt to take the following transformations of the variables to make better analysis and judgement calls:
+
+Log transformation of the Crime Rate, Police per Capita, Density per sq. mile, Tax revenue per capita
+And finally scaling the percent (percent young male) and probabilities (arrest, conviction and prison sentence) to be between 0-100
+```{r}
+crime_data$log_crmrte = log(crime_data$crmrte)
+crime_data$log_density = log(crime_data$density)
+crime_data$log_polpc = log(crime_data$polpc)
+crime_data$log_taxpc = log(crime_data$taxpc)
+crime_data$adj_pctymle = crime_data$pctymle *100
+crime_data$adj_prbarr = crime_data$prbarr *100
+crime_data$adj_prbconv = crime_data$prbconv *100
+crime_data$adj_prbpris = crime_data$prbpris *100
+
+```
+
+A final sumary table of our dataset with all transformation and data cleansing performed is displayed below:
+```{r mylatextable, results = "asis"}
+stargazer(crime_data, title = "Descriptive Statistics", digits=1)
+```
+
+## Bi-variate Analysis
+
+The correlation plot between the different variables is as follows:
+```{r}
+corrplot(cor(crime_data[,
+                        c("log_crmrte", "adj_prbarr", "adj_prbconv", "adj_prbpris", "avgsen", 
+                          "log_polpc", "log_density", "log_taxpc", "pctmin80", "mix", 
+                          "adj_pctymle")]), type = "upper")
+corrplot(cor(crime_data[,
+                        c("log_crmrte", "wcon", "wtuc", "wtrd", "wfir", "wser", "wmfg", "wfed", 
+                          "wsta", "wloc")]), type = "upper")
+```
+We can see that there is a high positive correlation between:
+
+- log of crime rate vs. log of policy per capita, log of tax revenue per capita, log of density and percent young male
+
+- log of crime rate vs. most of the wage variables
+
+
+And there is a high negative correlation between:
+
+- log of crime rate vs. probability of arrests and conviction
+
+
+The positive correlation observed makes sense for the following reasons:
+
+1) More densely populated regions tends to observe more crimes
+2) More wealthy areas (more wages and taxes) tend to have more crimes
+3) More crimes leads to more police presence in a particular county to monitor and reduce crime rate
+
+The negative correlations can be further observed using:
+```{r}
+par(mfrow=c(1,2))
+plot(crime_data$adj_prbarr, crime_data$log_crmrte,
+     main="Probability of arrest", ylab="Log Crime rate", xlab="Prob on arrest")
+abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbarr))
+plot(crime_data$adj_prbconv, crime_data$log_crmrte,
+     main="Probability of conviction vs. crime rate", ylab="Log Crime rate", 
+     xlab="Prob on conv")
+abline(lm(crime_data$log_crmrte ~ crime_data$adj_prbconv))
+```
+As seen above, as the probability of arrests and conviction go down, there are more criminals on the loose which leads to higher crime rates observed
+
+### TODO: Talk about other possible correlations here?
+
+### TODO: Discuss other interesting bi-variate analysis?
+
+# 3. Model Specification and Assumptions
+
+In our earlier analysis, we observed some key relationships between crime rate and other variables presented. Some of these variables had high positive correlation to crime rate while some others exhibited strong negative correlation.
+
+For our first simple model, we will choose a subset of these variables that we believe are most important determinants of crime rate.
+
+## Model 1
+$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2(YoungMale) + \beta_3(Minority) + u$$
+It is common knowledge that areas with higher density have more crime. Therefore we include that factor in our model.
+Similarly we hypothesized that crime rate is high among minority and young male population, so we round off our model with
+that factored in as well.
+
+```{r}
+model1 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80, data=crime_data)
+model1$coefficients
+par(mfrow=c(2,2))
+plot(model1)
+AIC(model1)
+summary(model1)$r.squared
+summary(model1)$adj.r.squared
+```
+
+## Model 2
+high probability of arrests and conviction act as deterrents to crime.
+
+$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2 (YoungMale) + \beta_3(Minority) + \beta_4(Conviction) + \beta_5 (Arrest) + \beta_6 (Tax) + u$$
+```{r}
+model2 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+
+            adj_prbconv+taxpc, data=crime_data)
+model2$coefficients
+par(mfrow=c(2,2))
+plot(model2, which=c(1,2,4))
+AIC(model2)
+summary(model2)$r.squared
+```
+
+## Model 3
+everything
+
+```{r}
+model3 = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+adj_prbconv+
+              taxpc+log_polpc, data=crime_data)
+model3$coefficients
+par(mfrow=c(2,2))
+plot(model3)
+AIC(model3)
+summary(model3)$r.squared
+```
+
+
+
+## Model 4a
+Model2 had the best r-squared value. We are trying to see if a filtering by region gives a better fit.
+In model 4, we will use the same x values but the data will be filetred on region West.
+
+$$ log(Crime Rate) = \beta_0 + \beta_1 log(Density) + \beta_2 (YoungMale) + \beta_3(Minority) + \beta_4(Conviction) + \beta_5 (Arrest) + \beta_6 (Tax) + u$$
+
+
+```{r}
+crime_west=sqldf("SELECT * FROM crime_data WHERE west=1")
 
 ```
 
 
 ```{r}
-logcrmrte.west.lm5 = lm( logcrmrte ~ logpolpc + log1pdensity , data=crime_west)
-logcrmrte.west.lm5
+
+logcrmrte.west.lm4a = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+
+            adj_prbconv+taxpc, data=crime_west)
+
+logcrmrte.west.lm4a$coefficients
+summary(logcrmrte.west.lm4a)$r.squared
+```
+
+For model 4, which is for region west, we get a r-squared value of 0.93, which is significantly better than the all region model, Model2.
+
+## Model 4b
+We will now apply Model2s for region Central.
+
+```{r}
+crime_central=sqldf("SELECT * FROM crime_data WHERE central=1")
 
 ```
+
+```{r}
+
+logcrmrte.central.lm4b = lm(log(crmrte) ~ (log_density)+pctymle+pctmin80+adj_prbarr+
+            adj_prbconv+taxpc, data=crime_central)
+
+logcrmrte.central.lm4b$coefficients
+summary(logcrmrte.central.lm4b)$r.squared
+
+
+```
+
+The r-squared value of 0.83 is still better than that of Model2.
+
+
+Comparing the Cook's distance plot of the region specific models, we see that none of the observations in the region specific models have  a Cook's distance greater than 1, unlike that in the region-generic model
+
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(model2, which=c(4))
+title("Region-generic model", line = 2)
+plot(logcrmrte.west.lm4a, which =c(4))
+title("Model for west region", line = 2)
+plot(logcrmrte.central.lm4b, which =c(4))
+title("Model for central region", line = 2)
+```
+
+```{r results = "asis"}
+stargazer(model1, model2, model3)
+```
+
+
+
+# 5. Discussion of omitted variables (Identify what you think are the 5-10 most important omitted variables that bias results you care about.)
+
+The important omitted variables that come to mind are:
+1) Median level of education in the county
+2) Median total household income
+3) Total number of neighbour crime watch groups in the county
+4) Family cohesiveness such as divorce rate, domestic violence. This maybe difficult to measure.
+5) Climate when the crime occured
+
+The median level of education in the county may have a negative correlation to crime rate. 
+This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen. 
+So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be negative.
+
+The median total household income in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen, and  a positive correlation with taxpc.
+So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be negative. For a model using taxpc, the OVB bias would be positive.
+
+The Total number of neighbour crime watch groups in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen.
+So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be negative.
+
+
+The family cohesiveness measure may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen.
+So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+
+Higher temperatures lead to high tempers and may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen.
+So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
 
 
 
 ```{r}
-corrplot(cor(crime_central[,
-                        c("logcrmrte", "crmrte","prbarr", "prbconv_cast", "prbpris", "logavgsen", 
-                          "logpolpc", "log1pdensity", "taxpc", "pctmin80", "wcon", 
-                          "mix", "pctymle")]), type = "upper")
+library(gridExtra)
+library(grid)
+
+#o_variable_names will appear as row headers
+ov_names=c("Median level of education","Employment")
+
+ov_bias_effect=c("A higher median level of education in the county may have a negative correlation to crime","Employment may may have a negative correlation to crime")
+
+ov=matrix(ov_bias_effect,ncol=1,byrow=TRUE)
+colnames(ov)=c("Bias result")
+rownames(ov) = ov_names
+ov
+
 ```
 
+```{r}
+
+
+```
+
+<!-- Education. -->
+<!-- May have  -->
+
+<!-- Unemployment -->
+
+<!-- Poverty -->
 
 
 ```{r}
-logcrmrte.central.lm6 = lm( logcrmrte ~ logpolpc + log1pdensity + prbconv_cast , data=crime_central)
-logcrmrte.central.lm6
 
 ```
-
-
-```{r}
-summary(logcrmrte.lm1)$r.squared 
-summary(logcrmrte.lm2)$r.squared 
-summary(logcrmrte.lm3)$r.squared 
-summary(logcrmrte.lm4)$r.squared 
-summary(logcrmrte.west.lm5)$r.squared 
-summary(logcrmrte.central.lm6)$r.squared 
-```
-
-
-
-
