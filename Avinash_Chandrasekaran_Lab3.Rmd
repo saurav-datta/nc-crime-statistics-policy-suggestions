@@ -65,6 +65,7 @@ crime_data = distinct(crime_data)
 # TODO: Remove this?
 # 3. Influential outliers
 
+# TODO: Consider removing this section
 This section was filled in after a first pass at the variables.  We present it here so that we remove any malformed observations in the beginning, and also to show the removed observations.
 
 We found the following observations to have outsized influence as measured by Cook's distance (> 1):
@@ -322,6 +323,8 @@ Therefore, and since we have already selected density (with an additional advant
 
 ### Percent minority
 
+# TODO: Relook at the graphs
+
 ```{r}
 f_describe_col(crime_data$pctmin80, plot_model=TRUE, do_sqrt=TRUE)
 crime_data$sqrt_pctmin80 = sqrt(crime_data$pctmin80)
@@ -373,6 +376,8 @@ We will *not* include wages in a first model.  We will use $wfed$ as a proxy var
 
 ### Offense Mix
 
+## TODO: Remove diagrams, keep correlation.
+
 ```{r}
 f_describe_col(crime_data$mix, do_log=TRUE, plot_model=TRUE)
 ```
@@ -410,6 +415,9 @@ We will use these to come up with separate models, based on different factors, l
 Let us check for correlations across predictor pairs.
 
 The correlation plot between the different predictors is as follows:
+
+# TODO: Check correlation matrix one more time.
+# cor(prbarr, polpc) is positive: check again.
 
 ```{r}
 corrplot(
@@ -482,8 +490,8 @@ model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               sqrt_pctmin80 + sqrt_pctymle, data=crime_data)
 summary(model1)
 AIC(model1)
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-plot(model1)
+par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
+plot(model1, which=c(1,2,5))
 ```
 
 The model shows a fit of about 0.79 as measured by adjusted $R^2$.  There are a few (non-normal) outliers at the bottom left of the QQ-plot due to data skew.
@@ -494,6 +502,8 @@ Next, let us include some more variables, as model 2.  In this model we also inc
 
 We do not include outcome variables that absorb causal effect (by having negative correlation).
 
+# TODO: Remove qqplot from model2, model3?
+
 ```{r}
 model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
               sqrt_pctmin80 + sqrt_pctymle
@@ -501,8 +511,8 @@ model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             data=crime_data)
 summary(model2)
 AIC(model2)
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-plot(model2)
+par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
+plot(model2, which=c(1,2,5))
 ```
 
 The fit improves to 0.808 (adjusted $R^2$).  Although we added it, the wage $wfed$ is not significant.  $taxpc$ is not significant either. 
@@ -518,8 +528,8 @@ model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
 summary(model3)
 vif(model3)
 AIC(model3)
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-plot(model3)
+par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
+plot(model3, which=c(1,2,5))
 ```
 
 This tops fit at about 0.828 (adjusted $R^2$).  It also says $avgsen$ is significant.
