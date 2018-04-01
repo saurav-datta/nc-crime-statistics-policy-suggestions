@@ -375,10 +375,10 @@ A general remark is in order for the positive correlation of crime across the wa
 
 We will *not* include wages in a first model.
 
-Let us explore $wcon$ as a proxy for all wages.
+Let us explore $wfed$ as a proxy variable for all wages, for a second model we will propose.
 
 ```{r}
-f_describe_col(crime_data$wcon, plot_model=TRUE)
+f_describe_col(crime_data$wfed, plot_model=TRUE)
 ```
 
 ### Offense Mix
@@ -411,9 +411,38 @@ We have the following categorical variables in the dataset:
 
 We will use these to come up with separate models, based on different factors, later in this analysis. [TODO: Saurav]
 
+## 5. Correlation Analysis
+
+Let us check for correlations across predictor pairs.
+
+The correlation plot between the different predictors is as follows:
+
+```{r}
+corrplot(
+  cor(crime_data[,
+                        c("prbarr", "log_prbconv", "prbpris", "avgsen", 
+                          "log_polpc", "log_density", "log_taxpc", "sqrt_pctmin80", "mix", 
+                          "sqrt_pctymle", "wfir", "wfed")
+                        ]),
+         type = "upper",
+  diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
+```
+
+The following correlations are worth a remark:
+
+- We do not see high correlations (>0.7), both positive or negative.  This helps us avoid multicollinearity issues.
+
+- Wages correlate highly (0.67) with population density, probably because it is tuned to cost of living.
+
+- Police per capita correlates highly with density (0.56) and tax revenue (0.44), perhaps indicating federal laws on police counts.
+
+- Probability of arrest correlates negatively (-0.38) with density, indicating that criminals get away with crime in populous areas.  It also correlates negatively (-0.30) with probability of conviction, indicating higher chance of false arrests when a large number of arrests are made.
+
+## 6. Models
+
 # Summary of variables
 
-Here is a summary table of variables used in our models.
+Here is a summary table of variables we will use in our models.
 
 | Variable | Transform? | Model1? | Model2? | Model3? | Remarks |
 |----------|------------|---------|---------|---------|---------|
@@ -442,44 +471,12 @@ Here is a summary table of variables used in our models.
 | mix      | log        |         |         | Y       | No corr. found |
 | pctymle  | sqrt       | Y       | Y       | Y       | Causal, weak cor  |
 
-## 5. Correlation Analysis
-
-Let us check for correlations across predictor pairs.
-
-The correlation plot between the different predictors is as follows:
-
-```{r}
-corrplot(
-  cor(crime_data[,
-                        c("prbarr", "log_prbconv", "prbpris", "avgsen", 
-                          "log_polpc", "log_density", "log_taxpc", "sqrt_pctmin80", "mix", 
-                          "sqrt_pctymle", "wfir", "wfed")
-                        ]),
-         type = "upper",
-  diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
-```
-
-The following correlations are worth a remark:
-
-- We do not see high correlations (>0.7), both positive or negative.  This helps us avoid multicollinearity issues.
-
-- Wages correlate highly (0.67) with population density, probably because it is tuned to cost of living.
-
-- Police per capita correlates highly with density (0.56) and tax revenue (0.44), perhaps indicating federal laws on police counts.
-
-- Probability of arrest correlates negatively (-0.38) with density, indicating that criminals get away with crime in populous areas.  It also correlates negatively (-0.30) with probability of conviction, indicating higher chance of false arrests when a large number of arrests are made.
-
-### TODO: Talk about other possible correlations here?
-
-### TODO: Discuss other interesting bi-variate analysis?
-
-## 6. Models
-
 As outlined in the table above, here are three models we propose.
 
 The first model includes what we think would be only causal variables.
 
-* We believe that the following cause higher crime: high density, higher percentage of minorities, higher percentage of young men.
+* We believe that the following can directly cause higher crime: high density, higher percentage of minorities, higher percentage of young men.
+
 * We also think the following cause lower crime: high probability of arrest and conviction.
 
 $$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ \sqrt{pctmin80} + \beta_6\ \sqrt{pctymle}$$
@@ -501,6 +498,8 @@ It is interesting that the model does not consider $pctymle$ to be a significant
 
 Next, let us include some more variables, as model 2.  In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
 
+We do not include outcome variables that absorb causal effect (by having negative correlation).
+
 ```{r}
 model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
               sqrt_pctmin80 + sqrt_pctymle
@@ -514,7 +513,7 @@ plot(model2)
 
 The fit improves to 0.808 (adjusted $R^2$).  The wage $wfed$ is not significant.  $taxpc$ is not significant either.
 
-We will now build a third model that includes almost all the variables, for the sake of comparison.  We only exclude wages because their distribution is highly alike.
+We will now build a third model that includes almost all the variables, for the sake of completeness and comparison.  We only exclude wages because their distribution is highly alike.
 
 ```{r}
 model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
@@ -535,13 +534,23 @@ This tops fit at about 0.828 (adjusted $R^2$).  It also says $avgsen$ is signifi
 stargazer(model1, model2, model3, type="latex")
 ```
 
-# 7. Discussion of omitted variables (Identify what you think are the 5-10 most important omitted variables that bias results you care about.)
+# 7. Omitted variables
 
-Education
+We have talked about omitted variables as part of our EDA.  Here we continue the discussion and also talk about the direction of bias.
 
-Unemployment
+We saw that crime rate was correlated positively with wages, tax revenue and police per capita.  None of these can cause crime.  We instead suspected urban petty crimes to be the cause of those correlations.  Similarly, we can think of several omitted variables that can help us develop causal models:
 
-Poverty
+* Education: What is the average number of years of education?  Uneducated people are more likely to get into crime for fast money.  Higher amounts of education should correlate negatively with crime rate to a large extent.
+
+* Unemployment: What fraction of the population is unemployed?  Lack of income can drive people to crime.  Lower amounts of unemployment should correlate negatively with crime rate to a large extent.
+
+* Poverty: What is the average family income?  If income is low for a family as a unit, that may lead to crime.  Higher poverty correlates with higher crime rate to a large extent.
+
+* Family size: What is the average family size?  If the family size is large, then the income may not be sufficient.  Large family sizes may correlate with crime rate to a small degree.
+
+* Alcoholism and substance abuse: Patient data from hospitals and police data can be a good marker to judge this.  High number of cases of drug abuse correlates with higher crime rate to a large extent.
+
+* Demographics: Too many single men?  Single parenting?  Orphaned children?  Segregated neighborhoods?  These can lead to trauma and crime.  They may correlate with crime rate to a small degree.
 
 # 8. Conclusion
 
