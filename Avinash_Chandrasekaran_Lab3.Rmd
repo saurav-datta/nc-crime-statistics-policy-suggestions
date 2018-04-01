@@ -97,19 +97,21 @@ Next, let us consider $density$.  Observation #79 has Cook's distance beyond 1, 
 
 Finally, we consider $polpc$.  Police per capita has positive skew.  Taking log helps, but we still see a very large outlier.  Fitting a model, we see that observation #51 has Cook's distance beyond 1.  This is a lot of leverage:
 
+Observation #25 also causes outliers in the final model fit due to a lot of influence.  It shows very high crime rate, very high police per capita, very low density, highest tax per capita, very low minority.  It is an observation with too many quirks and may merit separate investigation.
+
 Here are all the outlier observations:
 
 ```{r}
-outlier_data = crime_data %>% slice(c(51, 79, 84))
+outlier_data = crime_data %>% slice(c(25, 51, 79, 84))
 structure(outlier_data)
 ```
 
-The first observation above has very low crime rate at very high police per capita.  The second has extremely low density.  The third has extremely high wages in the service industry.
+The second observation above has very low crime rate at very high police per capita.  The third has extremely low density.  The fourth has extremely high wages in the service industry.
 
 The observations are questionable and affect our model because of their high influence, as measured by Cook's distance.  We will remove them.
 
 ```{r}
-crime_data <- crime_data %>% slice(-c(51, 79, 84))
+crime_data <- crime_data %>% slice(-c(25, 51, 79, 84))
 ```
 
 # 4. Exploratory Data Analysis
@@ -344,13 +346,13 @@ cor(log(crime_data$crmrte), crime_data[, wage_cols])
 
 This eliminates wsta and wtuc, but we are still left with 7 categories.
 
-* wfed (0.50)
-* wcon (0.37)
-* wtrd (0.37)
-* wser (0.34)
-* wloc (0.28)
-* wmfg (0.28)
-* wfir (0.27)
+* wfed (0.60)
+* wcon (0.33)
+* wtrd (0.42)
+* wser (0.38)
+* wloc (0.41)
+* wmfg (0.36)
+* wfir (0.32)
 
 As a different approach, let us check if the wages have high correlation among them.  This will allow us to eliminate possible multi-collinearity.
 
@@ -372,6 +374,8 @@ Again, no VIF is above 5.  This procedure also does not eliminate any wage categ
 A general remark is in order for the positive correlation of crime across the wage categories.  Higher wages may indicate higher wealth or a different omitted variable, and cannot be causal in and of themselves.
 
 We will *not* include wages in a first model.
+
+Let us explore $wcon$ as a proxy for all wages.
 
 ```{r}
 f_describe_col(crime_data$wcon, plot_model=TRUE)
@@ -426,15 +430,15 @@ Here is a summary table of variables used in our models.
 | central  | N/A        |         |         |         | Categ, sep. model |
 | urban    |            |         |         |         | Cor. with density |
 | pctmin80 | sqrt       | Y       | Y       | Y       | Causal  |
-| wcon     |            |         | Y       | Y       | Omit var: wealth |
-| wtuc     |            |         |         | Y       | Low corr. found |
-| wtrd     |            |         | Y       | Y       |         |
-| wfir     |            |         | Y       | Y       |         | 
-| wser     |            |         | Y       | Y       |         |
-| wmfg     |            |         | Y       | Y       |         |
-| wfed     |            |         | Y       | Y       |         |
-| wsta     |            |         |         | Y       | Low corr. found |
-| wloc     |            |         | Y       | Y       |         |
+| wcon     |            |         |         |         | Omit var: wealth |
+| wtuc     |            |         |         |         | Low corr. found |
+| wtrd     |            |         |         |         |         |
+| wfir     |            |         |         | Y       | Based on fit | 
+| wser     |            |         |         |         |         |
+| wmfg     |            |         |         |         |         |
+| wfed     |            |         | Y       | Y       | High corr. found |
+| wsta     |            |         |         |         | Low corr. found |
+| wloc     |            |         |         |         |         |
 | mix      | log        |         |         | Y       | No corr. found |
 | pctymle  | sqrt       | Y       | Y       | Y       | Causal, weak cor  |
 
@@ -456,7 +460,7 @@ par(mfrow=c(2,2))
 plot(model1)
 ```
 
-The model shows a fit of about 72% as measured by adjusted $R^2$.  Observation #25 shows a large deviation from the normal, but is still not an outlier as per Cook's distance.
+The model shows a fit of about 0.79 as measured by adjusted $R^2$.  There are a few (non-normal) outliers at the bottom left of the QQ-plot due to data skew.
 
 It is interesting that the model does not consider $pctymle$ to be a significant predictor.
 
@@ -465,35 +469,33 @@ Next, let us include some more variables, as model 2.
 ```{r}
 model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
               sqrt_pctmin80 + sqrt_pctymle
-            + log_polpc + log_taxpc + wcon + wtrd + wfir + 
-                  wser + wmfg + wfed + wloc, data=crime_data)
+            + log_polpc + log_taxpc + wfed,
+            data=crime_data)
 summary(model2)
 par(mfrow=c(2,2))
 plot(model2)
 ```
 
-The fit improves to 78% (adjusted $R^2$).  The only wages that are significant are $wfir$ and $wser$.  $taxpc$ is not significant either.
-
-Observation #25 causes considerable problems to this model as well.
+The fit improves to 0.808 (adjusted $R^2$).  The wage $wfed$ is not significant.  $taxpc$ is not significant either.
 
 We will now build a third model that includes almost all the variables:
 
 ```{r}
 model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
               sqrt_pctmin80 + sqrt_pctymle
-            + log_polpc + log_taxpc + wcon + wtrd + wfir + 
-                  wser + wmfg + wfed + wloc
-            + prbpris + avgsen + wtuc + wsta + mix,
+            + log_polpc + log_taxpc
+            + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
 summary(model3)
+vif(model3)
 par(mfrow=c(2,2))
 plot(model3)
 ```
 
-This tops fit at about 0.79 (adjusted $R^2$).  It also says $avgsen$ and $wser$ are significant.
+This tops fit at about 0.828 (adjusted $R^2$).  It also says $avgsen$ is significant.
 
-```{r mylatextable, results = "asis"}
-stargazer(model1, model2, model3, title = "Regression models")
+```{r echo=FALSE, results="asis"}
+stargazer(model1, model2, model3, type="latex")
 ```
 
 ## Bi-variate Analysis
@@ -592,9 +594,6 @@ AIC(model3)
 summary(model3)$r.squared
 ```
 
-```
-stargazer(model1, model2, model3)
-```
 # 5. Discussion of omitted variables (Identify what you think are the 5-10 most important omitted variables that bias results you care about.)
 
 Education
