@@ -16,6 +16,8 @@ library(dplyr)
 library(ggplot2)
 library(gridExtra)
 library(sqldf)
+library(knitr)
+library(kableExtra)
 ```
 
 # 1. Introduction
@@ -44,14 +46,16 @@ tail(crime_data_raw, n=8)
 
 There appears to be 6 rows of NA's across all variables. We can simply use na.omit(), because the number of all-NA rows matches the count on all the variables.
 
-### Column formatting
-
-We also notice that 'prbconv' is a factor while the rest of the variables are numeric.  West, central and urban are really categorical variables and not integers: we will treat them as such.
-
 ```{r}
 # Remove NA rows
 crime_data = na.omit(crime_data_raw)
+```
 
+### Column formatting
+
+We also notice that 'prbconv' is a factor while the rest of the variables are numeric.
+
+```{r}
 # convert factor to numeric for variable prbconv
 crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
 ```
@@ -73,25 +77,52 @@ duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
-# 3. Exploratory Data Analysis
+# 3. Influential outliers
 
-We will start with an explanatory note on transformations.  Any skew in the original data may cause the residuals not to follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
+This section was filled in after a first pass at the variables.  This is so that we remove any malformed observations in the beginning, and also to show the removed observations.
 
-We will now try to get a sense of each variable in the dataset.
+There is a large outlier for wages in service industry, $wser$.  Observation #84 has very large influence as shown by Cook's distance.
 
-## Single variable analysis
-
-```{r include=FALSE}
-structure(crime_data)
+```{r}
+m = lm(log(crime_data$crmrte) ~ crime_data$wser)
+plot(m, which=5)
 ```
 
-There are a total of 90 observations across 23 different variables. We will now explore each of the variables collected in the data.
+Next, let us consider $density$.  Observation #79 has Cook's distance beyond 1, meaning extreme leverage:
+
+```{r}
+m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
+plot(m, which=5)
+```
+
+Finally, we consider $polpc$.  Police per capita has positive skew.  Taking log helps, but we still see a very large outlier.  Fitting a model, we see that observation #51 has Cook's distance beyond 1.  This is a lot of leverage:
+
+```{r}
+m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
+plot(m, which=5)
+```
+
+Here are all the outlier observations:
+
+```{r}
+outlier_data = crime_data %>% slice(c(51, 79, 84))
+structure(outlier_data)
+```
+
+The first observation above has very low crime rate at very high police per capita.  The second has extremely low density.  The third has extremely high wages in the service industry.
+
+The observations are questionable and affect our model because of their high influence, as measured by Cook's distance.  We will remove them.
+
+```{r}
+crime_data <- crime_data %>% slice(-c(51, 79, 84))
+```
+
+# 4. Exploratory Data Analysis
 
 ```{r util_fns}
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   y = log(crime_data$crmrte)
-  print(summary(col))
   par(mfrow=c(2,2))
   if (is.numeric(col)) {
     hist(col, main="Histogram")
@@ -107,96 +138,32 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
     x = col
   }
   if (is.numeric(col)) {
-    print(signif(cor(x, y), 3))
+    print(paste("Correlation: ", signif(cor(x, y), 3)))
   }
   m = lm(y ~ x)
-  print(summary(m))
   plot(x, y, main="Cor. with crime rate")
   if (is.numeric(col))
     abline(m, col="blue")
   if (plot_model == TRUE) {
-    plot(m)
     if (do_log == TRUE) {
       m = lm(y ~ x)
-      plot(m)
     }
+    plot(m, which=5)
   }
 }
 ```
 
-### Wage distribution: Services
+We will start with an explanatory note on transformations.  Any skew in the original data may cause the residuals not to follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
 
-We will start with wage distribution in services industry.
+We will now try to get a sense of each variable in the dataset.
 
-There is a large outlier for wages in service industry, $wser$.  Observation #84 has very large influence as shown by Cook's distance.
+## Single variable analysis
 
-```{r}
-f_describe_col(crime_data$wser, plot_model=TRUE)
-```
-
-Let us look at the outlier observation:
-
-```{r}
-crime_data %>% slice(84) %>% select(everything())
-```
-
-This value is way too large.  Let us remove it from the dataset and replot.
-
-```{r}
-crime_data = crime_data %>% slice(-84)
-f_describe_col(crime_data$wser, plot_model=TRUE)
-```
-
-This looks better.  We will come back to this variable later, when we consider all wages.
-
-### Population density
-
-```{r}
-f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
-```
-
-We see that density is a highly skewed distribution.  Most observations are from counties with low population density.  However, observation #79 has Cook's distance beyond 1, meaning extreme leverage:
-
-```{r}
-crime_data %>% slice(79) %>% select(everything())
-```
-
-The density is 2E-5, which is extremely low.  With so few people, the observation may not add a lot of meaning.  It also affects the model.  We will remove this observation from the dataset and replot.
-
-```{r}
-crime_data = crime_data %>% slice(-79)
-f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
-```
-
-The histogram of density shows quite a bit positive skew. The log transformation shows a more promising normal distribution.  There are no more outliers with large leverage as measured by Cook's distance.
-
-We see high positive correlation with crime rate.  We will surely consider this variable in our model.
-
-### Police per capita
-
-```{r}
-f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
-```
-
-Police per capita has positive skew.  Taking log helps, but we still see a very large outlier.  Fitting a model, we see that observation #51 has Cook's distance beyond 1.  This is a lot of leverage.  Let us look at the observation:
-
-```{r}
-crime_data %>% slice(51) %>% select(everything())
-```
-
-The crime rate, at 0.005, is extremely low for police per capita close to the maximum.  It is questionable whether this observation is accurate.  We will remove this reading from the dataset and replot.
-
-```{r}
-crime_data = crime_data %>% slice(-51)
-f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
-crime_data$log_polpc = log(crime_data$polpc)
-```
-
-The distribution looks better now.  We see quite strong positive correlation of 0.6 with crime rate: high number of police per capita is associated with high crime rate.  It is probably a cause, rather than a result.  More police may have been deployed to deal with higher amount of crime.
-
-For our first model, we will *not* include this variable.
+There are a total of 90 observations across 23 different variables. We will now explore each of the variables collected in the data.
 
 ### Crime rate
+
+Crime rate is the key dependent variable of interest. 
 
 ```{r}
 summary(crime_data$crmrte)
@@ -208,7 +175,7 @@ hist(log(crime_data$crmrte), main = "Crime rate",
      xlab="Log of Crime Rate")
 ```
 
-The crime rate variable is the key dependent variable of interest. Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
+Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
 
 ### Probability of arrest
 
@@ -218,7 +185,7 @@ f_describe_col(crime_data$prbarr, plot_model=TRUE)
 
 The plot looks fairly normal; there is only one outlier.
 
-There is fairly negative correlation of -0.37: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent.
+There is fairly negative correlation of -0.37: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent, indicating causality.
 
 We will include $prbarr$ in our model.
 
@@ -240,7 +207,7 @@ print(cor(crime_data$prbarr, crime_data$prbconv))
 print(cor(crime_data$prbarr, crime_data$log_prbconv))
 ```
 
-Not much.  We will include $log_prbconv$ in our model.
+Not much.  We will include *log_prbconv* in our model.
 
 ### Probability of prison sentence
 
@@ -248,7 +215,7 @@ Not much.  We will include $log_prbconv$ in our model.
 f_describe_col(crime_data$prbpris)
 ```
 
-This histogram plot looks fairly normal and we don't observe any outliers.  However, correlation is almost nonexistent wrt crime rate.
+This histogram plot looks fairly normal and we don't observe any outliers.  However, correlation is almost nonexistent wrt crime rate.  This is interesting, because whether a crime results in spending time in prison does not seem to affect crime.  This can shape government policies on whether to send criminals to prison or to find alternative ways to reform them.
 
 We will *not* consider this variable in our model.
 
@@ -264,6 +231,33 @@ Perhaps we can use this data to make a policy recommendation to reduce sentences
 
 We will *not* consider this variable in our model.
 
+### Police per capita
+
+Note: In our first pass, we found an influential outlier with very low crime rate, even at very high police per capita.  We removed it, as mentioned in the section on outliers.
+
+Police per capita has positive skew.  Taking log helps:
+
+```{r}
+f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
+crime_data$log_polpc = log(crime_data$polpc)
+```
+
+The distribution looks better now.  We see fairly strong positive correlation of 0.6 with crime rate: high number of police per capita is associated with high crime rate.  It is probably a cause, rather than a result.  More police may have been deployed to deal with higher amount of crime.  If that is the case, it is worth questioning further why the additional police has not lowered the crime rate: are they ineffective?
+
+For our first model, we will *not* include this variable.
+
+### Population density
+
+Note: In our first pass, we found an influential outlier with very low density and removed it, as mentioned in the section on outliers.
+
+```{r}
+f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
+```
+
+The histogram of density shows quite a bit positive skew. The log transformation shows a more promising normal distribution.  There are no outliers with large leverage as measured by Cook's distance.
+
+We see high positive correlation with crime rate.  It may be that high population density indicates greater scope for hiding or cooperation in order to commit crime, indicating causality.  We will surely consider this variable in our model.
+
 ### Tax revenue per capita
 
 ```{r}
@@ -272,7 +266,7 @@ f_describe_col(crime_data$taxpc, do_log=TRUE, plot_model=TRUE)
 
 Tax revenue also shows positive skew, with one outlier indicating high tax revenue per capita (>100).  It does not show a lot of leverage, however, so we will keep the value.
 
-We also see considerable positive correlation with crime rate.  It may be that tax revenue is a proxy for wealth, and high amount of wealth attracts crime.
+We also see considerable positive correlation with crime rate.  It may be that tax revenue is a proxy for wealth, and high amount of wealth attracts crime.  On the other hand, it is worth checking if we are spending tax dollars wisely in combating crime: if that were the case, counties with higher tax revenue would probably see lower crime.
 
 We will *not* include this variable in a first model.
 
@@ -324,6 +318,8 @@ There is a fair amount of positive correlation with crime rate (0.27).  It may b
 We will include this (transformed) variable in our model.
 
 ### Wage distribution
+
+Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
 
 ```{r}
 par(mfrow=c(3,3))
@@ -400,7 +396,7 @@ crime_data$sqrt_pctymle = sqrt(crime_data$pctymle)
 
 We see moderate positive correlation with higher percentage of young males.  There is positive skew, which we correct by taking a square root.  Boxplot shows outliers, but none has outsized influence (Cook's distance < 0.5).
 
-We will include this variable in our model.
+A high percentage of young males can indicate higher aggressiveness and risk, causing higher rate of crime.  We will include this variable in our model.
 
 ### Categorical variables
 
@@ -409,7 +405,7 @@ We have the following categorical variables in the dataset:
 * Direction: west, central, other
 * Urban or rural
 
-We will use these to come up with separate models, based on different factors, later in this analysis.
+We will use these to come up with separate models, based on different factors, later in this analysis. [TODO: Saurav]
 
 # Summary of variables
 
