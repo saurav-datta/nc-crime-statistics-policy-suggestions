@@ -124,9 +124,32 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
 }
 ```
 
-### Population density
+### Wage distribution: Services
 
-We will start with population density.
+We will start with wage distribution in services industry.
+
+There is a large outlier for wages in service industry, $wser$.  Observation #84 has very large influence as shown by Cook's distance.
+
+```{r}
+f_describe_col(crime_data$wser, plot_model=TRUE)
+```
+
+Let us look at the outlier observation:
+
+```{r}
+crime_data %>% slice(84) %>% select(everything())
+```
+
+This value is way too large.  Let us remove it from the dataset and replot.
+
+```{r}
+crime_data = crime_data %>% slice(-84)
+f_describe_col(crime_data$wser, plot_model=TRUE)
+```
+
+This looks better.  We will come back to this variable later, when we consider all wages.
+
+### Population density
 
 ```{r}
 f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
@@ -296,34 +319,24 @@ crime_data$sqrt_pctmin80 = sqrt(crime_data$pctmin80)
 
 Minority percentage has positive skew, but no outliers.  Taking square root reshapes the distribution nicely.
 
-There is a fair amount of positive correlation with crime rate (0.27).  It may be that as minorities increase, there is loss of social homogeneity.
+There is a fair amount of positive correlation with crime rate (0.27).  It may be that as minorities increase, there is loss of social homogeneity and/or hate crime.
 
 We will include this (transformed) variable in our model.
 
 ### Wage distribution
 
 ```{r}
-par(mfrow=(c(3,3)))
-hist(crime_data$wcon, breaks=20,
-     main="Hist of wcon",ylab="Frequency", xlab="wagecon")
-hist(crime_data$wtuc, breaks=20,
-     main="Hist of wtuc",xlab="wagetuc", ylab="")
-hist(crime_data$wloc, breaks=20,
-     main="Hist of wloc",xlab="wageloc", ylab="")
-hist(crime_data$wtrd, breaks=20,
-     main="Hist of wtrd",ylab="Frequency", xlab="wagetrd")
-hist(crime_data$wfir, breaks=20,
-     main="Hist of wfir",xlab="wagefir", ylab="")
-hist(crime_data$wser, breaks=20,
-     main="Hist of wser",xlab="wageser", ylab="")
-hist(crime_data$wmfg, breaks=20,
-     main="Hist of wmfg",ylab="Frequency", xlab="wagemfg")
-hist(crime_data$wfed, breaks=20,
-     main="Hist of wfed",xlab="wagefed", ylab="")
-hist(crime_data$wsta, breaks=20,
-     main="Hist of wsta",xlab="wagesta", ylab="")
-
+f_describe_col(crime_data$wcon, plot_model=TRUE)
+f_describe_col(crime_data$wloc, plot_model=TRUE)
+f_describe_col(crime_data$wtrd, plot_model=TRUE)
+f_describe_col(crime_data$wtuc, plot_model=TRUE)
+f_describe_col(crime_data$wfir, plot_model=TRUE)
+f_describe_col(crime_data$wser, plot_model=TRUE)
+f_describe_col(crime_data$wmfg, plot_model=TRUE)
+f_describe_col(crime_data$wfed, plot_model=TRUE)
+f_describe_col(crime_data$wsta, plot_model=TRUE)
 ```
+
 Most of the wage variables conform to normal distributions.
 ```{r}
 summary(crime_data$wser)
