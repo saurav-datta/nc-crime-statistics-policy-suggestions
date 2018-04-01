@@ -383,25 +383,64 @@ f_describe_col(crime_data$wcon, plot_model=TRUE)
 
 ### Offense Mix
 
+```{r}
+f_describe_col(crime_data$mix, do_log=TRUE, plot_model=TRUE)
+```
+
+Offense mix does not seem to have any correlation with crime rate.  The distribution is skewed, but a log transform fixes it.  Outliers exist, but none have leverage as detected by Cook's distance.
+
+We will *not* include offense mix in our models.
 
 ### Percent of young males
 
 ```{r}
-par(mfrow=c(1,2))
-hist(crime_data$mix, main="Histogram of offense mix",
-     xlab="offense mix, f2f/other")
-hist(log(crime_data$mix), main="Histogram of offense mix",
-     xlab="Log of offense mix")
+f_describe_col(crime_data$pctymle, do_sqrt=TRUE, plot_model=TRUE)
+crime_data$sqrt_pctymle = sqrt(crime_data$pctymle)
 ```
-Log transformation of offense mix is more normal while the percent of young males has a heavy left positive skew regardless of the log transformation
 
-```{r}
-par(mfrow=c(1,2))
-hist(crime_data$pctymle, main="Hist of percent of young males",
-     xlab="pct young males")
-hist(log(crime_data$pctymle), main="Histogram of percent of young males",
-     xlab="Log of pct young males")
-```
+We see moderate positive correlation with higher percentage of young males.  There is positive skew, which we correct by taking a square root.  Boxplot shows outliers, but none has outsized influence (Cook's distance < 0.5).
+
+We will include this variable in our model.
+
+### Categorical variables
+
+We have the following categorical variables in the dataset:
+
+* Direction: west, central, other
+* Urban or rural
+
+We will use these to come up with separate models, based on different factors, later in this analysis.
+
+# Summary of variables
+
+Here is a summary table of variables used in our models.
+
+| Variable | Transform? | Model1? | Model2? | Model3? | Remarks |
+|----------|------------|---------|---------|---------|---------|
+| county   | N/A        |         |         |         | Unused  |
+| year     | N/A        |         |         |         | Unused  |
+| prbarr   |            | Y       | Y       | Y       |         |
+| prbconv  | log        | Y       | Y       | Y       |         |
+| prbpris  |            |         |         | Y       | No corr. found |
+| avgsen   |            |         |         | Y       | No corr. found |
+| polpc    | log        |         | Y       | Y       | Effect, not cause |
+| density  | log        | Y       | Y       | Y       | Causal  |
+| taxpc    | log        |         | Y       | Y       | Omit var: wealth |
+| west     | N/A        |         |         |         | Categ, sep. model |
+| central  | N/A        |         |         |         | Categ, sep. model |
+| urban    |            |         |         |         | Cor. with density |
+| pctmin80 | sqrt       | Y       | Y       | Y       | Causal  |
+| wcon     |            | Y       | Y       | Y       | Proxy for wages |
+| wtuc     |            |         |         | Y       | Low corr. found |
+| wtrd     |            |         | Y       | Y       |         |
+| wfir     |            |         | Y       | Y       |         | 
+| wser     |            |         | Y       | Y       |         |
+| wmfg     |            |         | Y       | Y       |         |
+| wfed     |            |         | Y       | Y       |         |
+| wsta     |            |         |         | Y       | Low corr. found |
+| wloc     |            |         | Y       | Y       |         |
+| mix      | log        |         |         | Y       | No corr. found |
+| pctymle  | sqrt       | Y       | Y       | Y       | Causal  |
 
 ## Data Transformation
 Based on the univariate analysis performed above, we can opt to take the following transformations of the variables to make better analysis and judgement calls:
