@@ -65,13 +65,13 @@ We found the following observations to have outsized influence as measured by Co
 * $polpc$, observation #51
 
 ```{r}
-par(mfrow=c(2,2))
+par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 m = lm(log(crime_data$crmrte) ~ crime_data$wser)
-plot(m, which=5)
+plot(m, which=5, caption=NA)
 m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
-plot(m, which=5)
+plot(m, which=5, caption=NA)
 m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
-plot(m, which=5)
+plot(m, which=5, caption=NA)
 ```
 
 Finally, observation #25 causes outliers in the final model fit due to a lot of influence.  It shows very high crime rate, very high police per capita, very low density, highest tax per capita, very low minority.  It is an observation with too many quirks and may merit separate investigation.
@@ -98,7 +98,7 @@ crime_data <- crime_data %>% slice(-c(25, 51, 79, 84))
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   y = log(crime_data$crmrte)
-  par(mfrow=c(2,2))
+  par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
   if (is.numeric(col)) {
     hist(col, main="Histogram")
     boxplot(col, main="Box plot")
@@ -123,10 +123,8 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   if (is.numeric(col))
     abline(m, col="blue")
   if (plot_model == TRUE) {
-    if (do_log == TRUE) {
-      m = lm(y ~ x)
-    }
-    plot(m, which=5)
+    # To reduce #pages in report
+    # plot(m, which=5, caption=NA)
   }
 }
 ```
@@ -142,7 +140,7 @@ We will now try to get a sense of each variable in the dataset.
 Crime rate is the key dependent variable of interest. 
 
 ```{r}
-par(mfrow=c(1,3))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 hist(crime_data$crmrte, main = "Crime rate", 
      xlab="Crime Rate")
 boxplot(crime_data$crmrte, main = "Boxplot")
@@ -278,7 +276,7 @@ We will *not* include this variable in a first model.
 print(length(crime_data$urban[crime_data$urban == 1]))
 urban_crime_data = crime_data %>% filter(urban == 1) %>% dplyr::select(-urban)
 rural_crime_data = crime_data %>% filter(urban == 0) %>% dplyr::select(-urban)
-par(mfrow=c(1,2))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 lmts = range(urban_crime_data$crmrte, rural_crime_data$crmrte)
 boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
 boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
@@ -328,16 +326,16 @@ We will include this (transformed) variable in our model.
 Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
 
 ```{r}
-par(mfrow=c(3,3))
-hist(crime_data$wcon)
-hist(crime_data$wloc)
-hist(crime_data$wtrd)
-hist(crime_data$wtuc)
-hist(crime_data$wfir)
-hist(crime_data$wser)
-hist(crime_data$wmfg)
-hist(crime_data$wfed)
-hist(crime_data$wsta)
+par(mfrow=c(3,4), mai=c(0.35,0.35,0.35,0.35))
+hist(crime_data$wcon, title="wcon")
+hist(crime_data$wloc, title="wloc")
+hist(crime_data$wtrd, title="wtrd")
+hist(crime_data$wtuc, title="wtuc")
+hist(crime_data$wfir, title="wfir")
+hist(crime_data$wser, title="wser")
+hist(crime_data$wmfg, title="wmfg")
+hist(crime_data$wfed, title="wfed")
+hist(crime_data$wsta, title="wsta")
 ```
 
 Most of the wage variables conform to normal distributions.  We do not have to worry about transformations.
@@ -469,7 +467,7 @@ model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               sqrt_pctmin80 + sqrt_pctymle, data=crime_data)
 summary(model1)
 AIC(model1)
-par(mfrow=c(2,2))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 plot(model1)
 ```
 
@@ -488,7 +486,7 @@ model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             data=crime_data)
 summary(model2)
 AIC(model2)
-par(mfrow=c(2,2))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 plot(model2)
 ```
 
@@ -505,7 +503,7 @@ model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
 summary(model3)
 vif(model3)
 AIC(model3)
-par(mfrow=c(2,2))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 plot(model3)
 ```
 
