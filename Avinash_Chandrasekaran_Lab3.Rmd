@@ -89,7 +89,7 @@ There are a total of 90 observations across 23 different variables. We will now 
 
 ```{r util_fns}
 # Utility function to describe a column variable
-f_describe_col = function (col, do_log=FALSE, plot_model=FALSE) {
+f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   y = log(crime_data$crmrte)
   print(summary(col))
   par(mfrow=c(2,2))
@@ -100,6 +100,9 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE) {
   if (do_log == TRUE) {
     x = log(col)
     hist(x, main="Histogram, log")
+  } else if (do_sqrt == TRUE) {
+    x = sqrt(col)
+    hist(x, main="Histogram, sqrt")
   } else {
     x = col
   }
@@ -280,18 +283,25 @@ Let us check if there is correlation between "urban" and "density":
 cor(crime_data$density, crime_data$urban)
 ```
 
-This is quite high, and we run a risk of multicollinearity.
+This is quite high, so we run a risk of multicollinearity.
 
 Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
 
 ### Percent minority
 
 ```{r}
-hist(crime_data$pctmin80, main="Histogram of percent minority", breaks=20,
-     xlab="percent of minority")
+f_describe_col(crime_data$pctmin80, plot_model=TRUE, do_sqrt=TRUE)
+crime_data$sqrt_pctmin80 = sqrt(crime_data$pctmin80)
 ```
-There doesn't seem to be anything odd about the percent of minority as calculated in 1980. Data and plot seems as expected. 
+
+Minority percentage has positive skew, but no outliers.  Taking square root reshapes the distribution nicely.
+
+There is a fair amount of positive correlation with crime rate (0.27).  It may be that as minorities increase, there is loss of social homogeneity.
+
+We will include this (transformed) variable in our model.
+
 ### Wage distribution
+
 ```{r}
 par(mfrow=(c(3,3)))
 hist(crime_data$wcon, breaks=20,
