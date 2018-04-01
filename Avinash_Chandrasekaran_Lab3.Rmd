@@ -2,7 +2,7 @@
 title: "Lab3 Draft, w203: Statistics for Data Science"
 author: "Avinash Chandrasekaran, Deepak Nagaraj, Saurav Datta"
 date: "March 31, 2018"
-output: pdf_document:
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -138,7 +138,8 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
     print(paste("Correlation: ", signif(cor(x, y), 3)))
   }
   m = lm(y ~ x)
-  plot(x, y, main="Cor. with crime rate")
+  plot(x, y, main="Cor. with crime rate", col=c("green", "red"),
+       xlab="predictor (green)", ylab="log_crmrte (red)")
   if (is.numeric(col))
     abline(m, col="blue")
   if (plot_model == TRUE) {
@@ -554,4 +555,12 @@ We saw that crime rate was correlated positively with wages, tax revenue and pol
 
 # 8. Conclusion
 
-TODO.
+Based on the above study, here are the conclusions we would like to offer the political campaign:
+
+* Crime rate is most correlated (0.7) with population density.  Median crime in urban areas is more than double those in rural areas.  Our policies should make our cities safer, in order to reduce crime significantly.
+* As probability of arrest and/or conviction increase, crime decreases.  Law enforcement is a good deterrent to crime.
+* Prison by itself does not correlate with crime, nor does the length of prison sentence.  We should use this data to argue for shorter sentences and alternatives to prison, such as reform and counselling.  We should be careful to continue to provide strong disincentives to crime, however.
+* Police per capita correlates positively with crime: this may mean we have not improved the effectiveness of our police in crime-infested areas.  This may also be due to omitted variables and is worth exploring further.
+* Similarly, wealth as proxied by tax revenue begets crime.  This may also suggest that we have the money and should be able to reroute tax dollars better to fight crime in high-crime areas.
+* Minorities have moderate correlation with crime.  Our policies should address integration of minorities into the mainstream and reduce segregation.
+* Similarly, we should investigate correlation of crime with young men.  If these men are driven to crime due to lack of education or unemployment (omitted variables in this dataset), we should pay attention to reforming our education or job market.
