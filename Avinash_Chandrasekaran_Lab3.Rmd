@@ -326,27 +326,66 @@ We will include this (transformed) variable in our model.
 ### Wage distribution
 
 ```{r}
-f_describe_col(crime_data$wcon, plot_model=TRUE)
-f_describe_col(crime_data$wloc, plot_model=TRUE)
-f_describe_col(crime_data$wtrd, plot_model=TRUE)
-f_describe_col(crime_data$wtuc, plot_model=TRUE)
-f_describe_col(crime_data$wfir, plot_model=TRUE)
-f_describe_col(crime_data$wser, plot_model=TRUE)
-f_describe_col(crime_data$wmfg, plot_model=TRUE)
-f_describe_col(crime_data$wfed, plot_model=TRUE)
-f_describe_col(crime_data$wsta, plot_model=TRUE)
+par(mfrow=c(3,3))
+hist(crime_data$wcon)
+hist(crime_data$wloc)
+hist(crime_data$wtrd)
+hist(crime_data$wtuc)
+hist(crime_data$wfir)
+hist(crime_data$wser)
+hist(crime_data$wmfg)
+hist(crime_data$wfed)
+hist(crime_data$wsta)
 ```
 
-Most of the wage variables conform to normal distributions.
+Most of the wage variables conform to normal distributions.  We do not have to worry about transformations.
+
+Let us look which of them have high correlation with crime rate, considering all those with $R > 0.25$ (arbitrarily).
+
 ```{r}
-summary(crime_data$wser)
-crime_data= filter(crime_data, wser<2177)
+wage_cols = c("wcon", "wloc", "wtrd", "wtuc", "wfir", 
+              "wser", "wmfg", "wfed", "wsta")
+cor(log(crime_data$crmrte), crime_data[, wage_cols])
 ```
-Wage in service industry does seem to have one strange outlier that is causing some skewness in the plot.
-We believe this is likely an error and are thus removing it from consideration.
+
+This eliminates wsta and wtuc, but we are still left with 7 categories.
+
+* wfed (0.50)
+* wcon (0.37)
+* wtrd (0.37)
+* wser (0.34)
+* wloc (0.28)
+* wmfg (0.28)
+* wfir (0.27)
+
+As a different approach, let us check if the wages have high correlation among them.  This will allow us to eliminate possible multi-collinearity.
+
+```{r}
+corrplot(cor(crime_data[, wage_cols]), type="upper", diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
+```
+
+Indeed, a lot of the wage categories above have a high degree of correlation among them, but all are less than 70.  We cannot eliminate any wage categories this way.
+
+As a third approach, let us check for variance inflation instead:
+
+```{r}
+m = lm(log(crmrte) ~ wfed + wcon + wtrd + wser + wloc + wmfg + wfir + wsta + wtuc, data=crime_data)
+print(vif(m))
+```
+
+Again, no VIF is above 5.  This procedure also does not eliminate any wage categories.
+
+We can take a call, and choose $wcon$ as a proxy for a first model.  We can include other wages in a second model.
+
+```{r}
+f_describe_col(crime_data$wcon, plot_model=TRUE)
+```
+
+### Offense Mix
 
 
-### Offense Mix & Percent of young males
+### Percent of young males
+
 ```{r}
 par(mfrow=c(1,2))
 hist(crime_data$mix, main="Histogram of offense mix",
