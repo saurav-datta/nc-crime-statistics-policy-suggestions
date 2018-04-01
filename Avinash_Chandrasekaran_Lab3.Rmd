@@ -6,18 +6,11 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo=TRUE, tidy.opts=list(width.cutoff=80), tidy=TRUE)
+knitr::opts_chunk$set(echo=TRUE, tidy.opts=list(width.cutoff=72))
 library(car)
 library(corrplot)
-library(lmtest)
-library(sandwich)
 library(stargazer)
 library(dplyr)
-library(ggplot2)
-library(gridExtra)
-library(sqldf)
-library(knitr)
-library(kableExtra)
 ```
 
 # 1. Introduction
@@ -28,7 +21,7 @@ The data provided consists of 25 variables and 91 different observations collect
 
 Our primary analysis of data will include ordinary least squares regressions to make casual estimates and we will clearly explain how omitted variabled may affect our conclusions. We begin our research by conducting exploratory analysis of the dataset to gain a better understanding of the variables.
 
-# 2. Data Input
+# 2. Data input and cleanup
 
 Let us read the data and have a first look.
 
@@ -37,51 +30,39 @@ Let us read the data and have a first look.
 crime_data_raw = read.csv("crime_v2.csv")
 ```
 
-### Empty rows
-
-```{r include=FALSE}
+```{r eval=FALSE}
 summary(crime_data_raw)
 tail(crime_data_raw, n=8)
 ```
 
 There appears to be 6 rows of NA's across all variables. We can simply use na.omit(), because the number of all-NA rows matches the count on all the variables.
 
-```{r}
-# Remove NA rows
-crime_data = na.omit(crime_data_raw)
-```
-
-### Column formatting
-
 We also notice that 'prbconv' is a factor while the rest of the variables are numeric.
 
-```{r}
-# convert factor to numeric for variable prbconv
-crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
-```
-
-### Unused variables
-
 County and Year variables just represent the different counties and the year the data was collected. Year is always 87.  Hence, we can safely remove these from the dataset for further analysis.
-
-```{r}
-crime_data = crime_data %>% dplyr::select(-c(year, county))
-```
-
-### Duplicate records
 
 We also noticed a duplicate record (record #89) in the dataset. As this could potentially affect our regression analysis, we will remove the duplicate record.
 
 ```{r}
+# remove NA rows
+crime_data = na.omit(crime_data_raw)
+# convert factor to numeric for variable prbconv
+crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
+crime_data = crime_data %>% dplyr::select(-c(year, county))
+# remove duplicate record
 duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
 # 3. Influential outliers
 
-This section was filled in after a first pass at the variables.  This is so that we remove any malformed observations in the beginning, and also to show the removed observations.
+This section was filled in after a first pass at the variables.  We present it here so that we remove any malformed observations in the beginning, and also to show the removed observations.
 
-There is a large outlier for wages in service industry, $wser$.  Observation #84 has very large influence as shown by Cook's distance.
+We found the following observations to have outsized influence as measured by Cook's distance (> 1):
+
+* $wser$, observation #84
+* $density$, observation #79
+* $polpc$, observation #51
 
 ```{r}
 par(mfrow=c(2,2))
@@ -93,22 +74,19 @@ m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
 plot(m, which=5)
 ```
 
-Next, let us consider $density$.  Observation #79 has Cook's distance beyond 1, meaning extreme leverage:
-
-Finally, we consider $polpc$.  Police per capita has positive skew.  Taking log helps, but we still see a very large outlier.  Fitting a model, we see that observation #51 has Cook's distance beyond 1.  This is a lot of leverage:
-
-Observation #25 also causes outliers in the final model fit due to a lot of influence.  It shows very high crime rate, very high police per capita, very low density, highest tax per capita, very low minority.  It is an observation with too many quirks and may merit separate investigation.
+Finally, observation #25 causes outliers in the final model fit due to a lot of influence.  It shows very high crime rate, very high police per capita, very low density, highest tax per capita, very low minority.  It is an observation with too many quirks and may merit separate investigation.
 
 Here are all the outlier observations:
 
-```{r echo=FALSE}
-outlier_data = crime_data %>% slice(c(25, 51, 79, 84))
-str(outlier_data, give.attr=FALSE, give.head=FALSE)
+```{r}
+crime_data %>%
+  slice(c(25, 51, 79, 84)) %>% 
+  select(crmrte, density, central, urban, polpc, wser, taxpc, pctmin80)
 ```
 
-The second observation above has very low crime rate at very high police per capita.  The third has extremely low density.  The fourth has extremely high wages in the service industry.
+The first observation is a quirky one with many unusual variable values.  The second observation above has very low crime rate at very high police per capita.  The third has extremely low density.  The fourth has extremely high wages in the service industry.
 
-The observations are questionable and affect our model because of their high influence, as measured by Cook's distance.  We will remove them.
+The observations are questionable and affect our model because of their high influence.  We will remove them.
 
 ```{r}
 crime_data <- crime_data %>% slice(-c(25, 51, 79, 84))
@@ -138,8 +116,10 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
     print(paste("Correlation: ", signif(cor(x, y), 3)))
   }
   m = lm(y ~ x)
-  plot(x, y, main="Cor. with crime rate", col=c("green", "red"),
-       xlab="predictor (green)", ylab="log_crmrte (red)")
+  plot(x, y, main="Cor. with crime rate",
+       col=c("green", "red"),
+       xlab="predictor (green)",
+       ylab="crime (red)")
   if (is.numeric(col))
     abline(m, col="blue")
   if (plot_model == TRUE) {
@@ -157,15 +137,12 @@ We will now try to get a sense of each variable in the dataset.
 
 ## Single variable analysis
 
-There are a total of 90 observations across 23 different variables. We will now explore each of the variables collected in the data.
-
 ### Crime rate
 
 Crime rate is the key dependent variable of interest. 
 
 ```{r}
-summary(crime_data$crmrte)
-par(mfrow=c(1,2))
+par(mfrow=c(1,3))
 hist(crime_data$crmrte, main = "Crime rate", 
      xlab="Crime Rate")
 boxplot(crime_data$crmrte, main = "Boxplot")
@@ -175,6 +152,16 @@ crime_data$log_crmrte = log(crime_data$crmrte)
 ```
 
 Looking at the histogram, the distribution is positively skewed to the left. We can take the log transformation which makes the variable appear more normally distributed.
+
+Crime rate is mostly low, but there are some observations that show high crime rate (positive outliers).  This causes skew.
+
+```{r}
+crime_data %>% filter(crmrte > 0.07) %>% select(density, central, urban, prbarr, prbconv)
+```
+
+We see that high-crime areas are in central, urban North Carolina.
+
+---
 
 ### Probability of arrest
 
@@ -187,6 +174,8 @@ The plot looks fairly normal; there is only one outlier.
 There is fairly negative correlation of -0.37: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent, indicating causality.
 
 We will include $prbarr$ in our model.
+
+---
 
 ### Probability of conviction
 
@@ -208,15 +197,19 @@ print(cor(crime_data$prbarr, crime_data$log_prbconv))
 
 Not much.  We will include *log_prbconv* in our model.
 
+---
+
 ### Probability of prison sentence
 
 ```{r}
 f_describe_col(crime_data$prbpris)
 ```
 
-This histogram plot looks fairly normal and we don't observe any outliers.  However, correlation is almost nonexistent wrt crime rate.  This is interesting, because whether a crime results in spending time in prison does not seem to affect crime.  This can shape government policies on whether to send criminals to prison or to find alternative ways to reform them.
+This histogram plot looks fairly normal.  However, correlation is almost nonexistent wrt crime rate.  This is interesting, because whether a crime results in spending time in prison does not seem to affect crime.  This can shape government policies on whether to send criminals to prison or to find alternative ways to reform them.
 
 We will *not* consider this variable in our model.
+
+---
 
 ### Average sentence duration
 
@@ -229,6 +222,8 @@ The average sentence in days looks slightly positive skewed, which we can correc
 Perhaps we can use this data to make a policy recommendation to reduce sentences over long periods of time, or to be more lenient in pardoning criminals already serving long sentences.
 
 We will *not* consider this variable in our model.
+
+---
 
 ### Police per capita
 
@@ -243,7 +238,9 @@ crime_data$log_polpc = log(crime_data$polpc)
 
 The distribution looks better now.  We see fairly strong positive correlation of 0.6 with crime rate: high number of police per capita is associated with high crime rate.  It is probably a cause, rather than a result.  More police may have been deployed to deal with higher amount of crime.  If that is the case, it is worth questioning further why the additional police has not lowered the crime rate: are they ineffective?
 
-For our first model, we will *not* include this variable.
+For our first model, we will *not* include this variable.  We will include it in the second model.
+
+---
 
 ### Population density
 
@@ -258,6 +255,8 @@ The histogram of density shows quite a bit positive skew. The log transformation
 
 We see high positive correlation with crime rate.  It may be that high population density indicates greater scope for hiding or cooperation in order to commit crime, indicating causality.  We will surely consider this variable in our model.
 
+---
+
 ### Tax revenue per capita
 
 ```{r}
@@ -271,6 +270,8 @@ We also see considerable positive correlation with crime rate.  It may be that t
 
 We will *not* include this variable in a first model.
 
+---
+
 ### Urban population
 
 ```{r}
@@ -283,7 +284,7 @@ boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
 boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
 ```
 
-It is worth noting that there are only 8 observations classified urban in this dataset.  Median crime rate in urban regions is double that of rural regions.
+It is worth noting that there are only 8 observations classified urban in this dataset.  However, median crime rate in urban regions is double that of rural regions.
 
 Let us fit a model and see if our variable is salient.
 
@@ -305,6 +306,8 @@ This is quite high, so we run a risk of multicollinearity.
 
 Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
 
+---
+
 ### Percent minority
 
 ```{r}
@@ -317,6 +320,8 @@ Minority percentage has positive skew, but no outliers.  Taking square root resh
 There is a fair amount of positive correlation with crime rate (0.27).  It may be that as minorities increase, there is loss of social homogeneity and/or hate crime.
 
 We will include this (transformed) variable in our model.
+
+---
 
 ### Wage distribution
 
@@ -340,47 +345,18 @@ Most of the wage variables conform to normal distributions.  We do not have to w
 Let us look which of them have high correlation with crime rate, considering all those with $R > 0.25$ (arbitrarily).
 
 ```{r}
-wage_cols = c("wcon", "wloc", "wtrd", "wtuc", "wfir", 
+wage_cols = c("log_crmrte", "wcon", "wloc", "wtrd", "wtuc", "wfir", 
               "wser", "wmfg", "wfed", "wsta")
-cor(log(crime_data$crmrte), crime_data[, wage_cols])
-```
-
-This eliminates wsta and wtuc, but we are still left with 7 categories.
-
-* wfed (0.60)
-* wcon (0.33)
-* wtrd (0.42)
-* wser (0.38)
-* wloc (0.41)
-* wmfg (0.36)
-* wfir (0.32)
-
-As a different approach, let us check if the wages have high correlation among them.  This will allow us to eliminate possible multi-collinearity.
-
-```{r}
 corrplot(cor(crime_data[, wage_cols]), type="upper", diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
 ```
 
 Indeed, a lot of the wage categories above have a high degree of correlation among them, but all are less than 70.  We cannot eliminate any wage categories this way.
 
-As a third approach, let us check for variance inflation instead:
-
-```{r}
-m = lm(log(crmrte) ~ wfed + wcon + wtrd + wser + wloc + wmfg + wfir + wsta + wtuc, data=crime_data)
-print(vif(m))
-```
-
-Again, no VIF is above 5.  This procedure also does not eliminate any wage categories.
-
 A general remark is in order for the positive correlation of crime across the wage categories.  Higher wages may indicate higher wealth or a different omitted variable, and cannot be causal in and of themselves.
 
-We will *not* include wages in a first model.
+We will *not* include wages in a first model.  We will use $wfed$ as a proxy variable for all wages, for a second model we will propose.
 
-Let us explore $wfed$ as a proxy variable for all wages, for a second model we will propose.
-
-```{r}
-f_describe_col(crime_data$wfed, plot_model=TRUE)
-```
+---
 
 ### Offense Mix
 
@@ -401,7 +377,11 @@ crime_data$sqrt_pctymle = sqrt(crime_data$pctymle)
 
 We see moderate positive correlation with higher percentage of young males.  There is positive skew, which we correct by taking a square root.  Boxplot shows outliers, but none has outsized influence (Cook's distance < 0.5).
 
-A high percentage of young males can indicate higher aggressiveness and risk, causing higher rate of crime.  We will include this variable in our model.
+A high percentage of young males can indicate higher aggressiveness and risk, causing higher rate of crime.  We may also see the effect of omitted variables like youth unemployment or low education levels.
+
+We will include this variable in our model.
+
+---
 
 ### Categorical variables
 
@@ -439,9 +419,9 @@ The following correlations are worth a remark:
 
 - Probability of arrest correlates negatively (-0.38) with density, indicating that criminals get away with crime in populous areas.  It also correlates negatively (-0.30) with probability of conviction, indicating higher chance of false arrests when a large number of arrests are made.
 
-## 6. Models
+## 6. Model development
 
-# Summary of variables
+### Summary of variables
 
 Here is a summary table of variables we will use in our models.
 
@@ -449,8 +429,8 @@ Here is a summary table of variables we will use in our models.
 |----------|------------|---------|---------|---------|---------|
 | county   | N/A        |         |         |         | Unused  |
 | year     | N/A        |         |         |         | Unused  |
-| prbarr   |            | Y       | Y       | Y       |         |
-| prbconv  | log        | Y       | Y       | Y       |         |
+| prbarr   |            | Y       | Y       | Y       | Causal  |
+| prbconv  | log        | Y       | Y       | Y       | Causal  |
 | prbpris  |            |         |         | Y       | No corr. found |
 | avgsen   |            |         |         | Y       | No corr. found |
 | polpc    | log        |         | Y       | Y       | Effect, not cause |
@@ -461,14 +441,14 @@ Here is a summary table of variables we will use in our models.
 | urban    |            |         |         |         | Cor. with density |
 | pctmin80 | sqrt       | Y       | Y       | Y       | Causal  |
 | wcon     |            |         |         |         | Omit var: wealth |
-| wtuc     |            |         |         |         | Low corr. found |
-| wtrd     |            |         |         |         |         |
-| wfir     |            |         |         | Y       | Based on fit | 
+| wtuc     |            |         |         |         | Proxied |
+| wtrd     |            |         |         |         |   -"-   |
+| wfir     |            |         |         | Y       |         | 
 | wser     |            |         |         |         |         |
 | wmfg     |            |         |         |         |         |
-| wfed     |            |         | Y       | Y       | High corr. found |
-| wsta     |            |         |         |         | Low corr. found |
-| wloc     |            |         |         |         |         |
+| wfed     |            |         | Y       | Y       | Proxy   |
+| wsta     |            |         |         |         | Proxied |
+| wloc     |            |         |         |         | Proxied |
 | mix      | log        |         |         | Y       | No corr. found |
 | pctymle  | sqrt       | Y       | Y       | Y       | Causal, weak cor  |
 
@@ -512,7 +492,7 @@ par(mfrow=c(2,2))
 plot(model2)
 ```
 
-The fit improves to 0.808 (adjusted $R^2$).  The wage $wfed$ is not significant.  $taxpc$ is not significant either.
+The fit improves to 0.808 (adjusted $R^2$).  Although we added it, the wage $wfed$ is not significant.  $taxpc$ is not significant either. 
 
 We will now build a third model that includes almost all the variables, for the sake of completeness and comparison.  We only exclude wages because their distribution is highly alike.
 
@@ -531,8 +511,11 @@ plot(model3)
 
 This tops fit at about 0.828 (adjusted $R^2$).  It also says $avgsen$ is significant.
 
+The AIC scores also reflect the fit: the last model has the best (least) score, whereas the first model has the worst.
+
 ```{r echo=FALSE, results="asis"}
-stargazer(model1, model2, model3, type="latex")
+stargazer(model1, model2, model3, type="latex", digits=3,
+          title="Regression model summary")
 ```
 
 # 7. Omitted variables
