@@ -17,43 +17,52 @@ library(dplyr)
 
 Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand the determinants of crime and to generate policy suggestions that are applicable to local government.
 
-The data provided consists of 25 variables and 91 different observations collected in a given year. Moreover the dataset obtained is a single cross-section of data collected from variety of different sources. For the analysis made in this research, we will assume that the data collected from different counties in NC were randomly sampled.
+The data provided consists of 25 variables and 97 different observations collected in a given year. Moreover the dataset obtained is a single cross-section of data collected from variety of different sources. For the analysis made in this research, we will assume that the data collected from different counties in NC were randomly sampled.
 
 Our primary analysis of data will include ordinary least squares regressions to make casual estimates and we will clearly explain how omitted variabled may affect our conclusions. We begin our research by conducting exploratory analysis of the dataset to gain a better understanding of the variables.
 
 # 2. Data input and cleanup
 
-Let us read the data and have a first look.
+Our first step in EDA is to detect anomalies such as missing & duplicate values and attempt to clean up the dataset before deeper dive into regression analysis
 
 ```{r}
 # Read the csv file
 crime_data_raw = read.csv("crime_v2.csv")
 ```
 
-```{r eval=FALSE}
+```{r include=FALSE}
 summary(crime_data_raw)
 tail(crime_data_raw, n=8)
 ```
 
-There appears to be 6 rows of NA's across all variables. We can simply use na.omit(), because the number of all-NA rows matches the count on all the variables.
+We found 6 rows of NA's across all variables. Due to this We simply omit these NA's.
 
-We also notice that 'prbconv' is a factor while the rest of the variables are numeric.
+```{r}
+# Remove NA rows
+crime_data = na.omit(crime_data_raw)
+```
+
+Further, we noticed that 'prbconv' is a factor while the rest of the variables are numeric. We convert 'prbconv' to match other numeric variables in our data set.
+
+```{r}
+# convert factor to numeric for variable prbconv
+crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
+```
 
 County and Year variables just represent the different counties and the year the data was collected. Year is always 87.  Hence, we can safely remove these from the dataset for further analysis.
+
+```{r}
+crime_data = crime_data %>% dplyr::select(-c(year, county))
+```
 
 We also noticed a duplicate record (record #89) in the dataset. As this could potentially affect our regression analysis, we will remove the duplicate record.
 
 ```{r}
-# remove NA rows
-crime_data = na.omit(crime_data_raw)
-# convert factor to numeric for variable prbconv
-crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
-crime_data = crime_data %>% dplyr::select(-c(year, county))
-# remove duplicate record
 duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
+# TODO: Remove this?
 # 3. Influential outliers
 
 This section was filled in after a first pass at the variables.  We present it here so that we remove any malformed observations in the beginning, and also to show the removed observations.
@@ -134,7 +143,7 @@ We will start with an explanatory note on transformations.  Any skew in the orig
 We will now try to get a sense of each variable in the dataset.
 
 ## Single variable analysis
-
+There are a total of 90 observations across 25 different variables. We will now explore each of the variables collected in the data.
 ### Crime rate
 
 Crime rate is the key dependent variable of interest. 
@@ -193,7 +202,7 @@ print(cor(crime_data$prbarr, crime_data$prbconv))
 print(cor(crime_data$prbarr, crime_data$log_prbconv))
 ```
 
-Not much.  We will include *log_prbconv* in our model.
+We don't see much correlation and will include *log_prbconv* in our model.
 
 ---
 
@@ -224,25 +233,21 @@ We will *not* consider this variable in our model.
 ---
 
 ### Police per capita
-
-Note: In our first pass, we found an influential outlier with very low crime rate, even at very high police per capita.  We removed it, as mentioned in the section on outliers.
-
-Police per capita has positive skew.  Taking log helps:
+Police per capita has positive skew.  And we observed that taking the log tranformation made the distribution more normal.
 
 ```{r}
 f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
 crime_data$log_polpc = log(crime_data$polpc)
 ```
 
-The distribution looks better now.  We see fairly strong positive correlation of 0.6 with crime rate: high number of police per capita is associated with high crime rate.  It is probably a cause, rather than a result.  More police may have been deployed to deal with higher amount of crime.  If that is the case, it is worth questioning further why the additional police has not lowered the crime rate: are they ineffective?
+We see fairly strong positive correlation of 0.6 with crime rate: high number of police per capita is associated with high crime rate.  It is probably a cause, rather than a result.  More police may have been deployed to deal with higher amount of crime.  If that is the case, it is worth questioning further why the additional police has not lowered the crime rate: are they ineffective?
 
-For our first model, we will *not* include this variable.  We will include it in the second model.
+For our first model, we will *not* include this variable.
 
 ---
 
 ### Population density
-
-Note: In our first pass, we found an influential outlier with very low density and removed it, as mentioned in the section on outliers.
+In our first pass, we found an influential outlier where observation #79 has Cook's distance beyond 1, meaning extreme leverage. The value of 0.000020342 seems like an unlikely value for people per square mile. We thus removed it from consideration
 
 ```{r}
 f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
@@ -274,19 +279,30 @@ We will *not* include this variable in a first model.
 
 ```{r}
 print(length(crime_data$urban[crime_data$urban == 1]))
-urban_crime_data = crime_data %>% filter(urban == 1) %>% dplyr::select(-urban)
-rural_crime_data = crime_data %>% filter(urban == 0) %>% dplyr::select(-urban)
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-lmts = range(urban_crime_data$crmrte, rural_crime_data$crmrte)
-boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
-boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
+boxplot(crime_data$crmrte ~ crime_data$urban, ylab="Crime Rate",
+        main="Crime Rate in rural vs. urban county",
+        names=c("Rural", "Urban"))
+boxplot(crime_data$density ~ crime_data$urban, ylab="Density",
+        main="Density in Rural vs. Urban counties", 
+        names=(c("Rural", "Urban")))
+print(cor(crime_data$urban, log(crime_data$crmrte)))
+
+# TODO Remove
+#print(length(crime_data$urban[crime_data$urban == 1]))
+#urban_crime_data = crime_data %>% filter(urban == 1) %>% dplyr::select(-urban)
+#rural_crime_data = crime_data %>% filter(urban == 0) %>% dplyr::select(-urban)
+#par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+#lmts = range(urban_crime_data$crmrte, rural_crime_data$crmrte)
+#boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
+#boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
 ```
 
 It is worth noting that there are only 8 observations classified urban in this dataset.  However, median crime rate in urban regions is double that of rural regions.
 
 Let us fit a model and see if our variable is salient.
 
-```{r}
+```{r include=FALSE}
 print(cor(crime_data$urban, log(crime_data$crmrte)))
 m = lm(log(crmrte) ~ factor(urban), data=crime_data)
 print(summary(m))
@@ -294,13 +310,11 @@ print(summary(m))
 
 We do see a strong correlation between observations classified "urban" and crime rate, and the same is reflected by the low p-value in the model summary.
 
-Let us check if there is correlation between "urban" and "density":
-
 ```{r}
 cor(crime_data$density, crime_data$urban)
 ```
 
-This is quite high, so we run a risk of multicollinearity.
+We also observe a high correlation betweeb "urban" and "density", so we run a risk of multicollinearity.
 
 Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
 
@@ -326,6 +340,7 @@ We will include this (transformed) variable in our model.
 Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
 
 ```{r}
+crime_data= filter(crime_data, wser<2177)
 par(mfrow=c(3,4), mai=c(0.35,0.35,0.35,0.35))
 hist(crime_data$wcon, title="wcon")
 hist(crime_data$wloc, title="wloc")
