@@ -23,56 +23,42 @@ Our primary analysis of data will include ordinary least squares regressions to 
 
 # 2. Data input and cleanup
 
-Our first step in EDA is to detect anomalies such as missing & duplicate values and attempt to clean up the dataset before deeper dive into regression analysis
+Our first step is to detect anomalies such as missing and duplicate values and to clean up the dataset before deeper dive into regression analysis.
 
 ```{r}
 # Read the csv file
 crime_data_raw = read.csv("crime_v2.csv")
 ```
 
-```{r include=FALSE}
+```{r eval=FALSE}
 summary(crime_data_raw)
 tail(crime_data_raw, n=8)
 ```
 
-We found 6 rows of NA's across all variables. Due to this We simply omit these NA's.
+There appears to be 6 rows of NA's across all variables. We can simply use na.omit(), because the number of all-NA rows matches the count on all the variables.
 
-```{r}
-# Remove NA rows
-crime_data = na.omit(crime_data_raw)
-```
-
-Further, we noticed that 'prbconv' is a factor while the rest of the variables are numeric. We convert 'prbconv' to match other numeric variables in our data set.
-
-```{r}
-# convert factor to numeric for variable prbconv
-crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
-```
+We also notice that 'prbconv' is a factor while the rest of the variables are numeric.
 
 County and Year variables just represent the different counties and the year the data was collected. Year is always 87.  Hence, we can safely remove these from the dataset for further analysis.
-
-```{r}
-crime_data = crime_data %>% dplyr::select(-c(year, county))
-```
 
 We also noticed a duplicate record (record #89) in the dataset. As this could potentially affect our regression analysis, we will remove the duplicate record.
 
 ```{r}
+# remove NA rows
+crime_data = na.omit(crime_data_raw)
+# convert factor to numeric for variable prbconv
+crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
+crime_data = crime_data %>% dplyr::select(-c(year, county))
+# remove duplicate record
 duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
-# TODO: Remove this?
-# 3. Influential outliers
-
-# TODO: Consider removing this section
-This section was filled in after a first pass at the variables.  We present it here so that we remove any malformed observations in the beginning, and also to show the removed observations.
-
 We found the following observations to have outsized influence as measured by Cook's distance (> 1):
 
-* $wser$, observation #84
-* $density$, observation #79
-* $polpc$, observation #51
+* $wser$, observation #84: extremely high service wages
+* $density$, observation #79: extremely low density
+* $polpc$, observation #51: very low crime rate at high police per capita
 
 ```{r}
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
@@ -86,23 +72,13 @@ plot(m, which=5, caption=NA)
 
 Finally, observation #25 causes outliers in the final model fit due to a lot of influence.  It shows very high crime rate, very high police per capita, very low density, highest tax per capita, very low minority.  It is an observation with too many quirks and may merit separate investigation.
 
-Here are all the outlier observations:
-
-```{r}
-crime_data %>%
-  slice(c(25, 51, 79, 84)) %>% 
-  select(crmrte, density, central, urban, polpc, wser, taxpc, pctmin80)
-```
-
-The first observation is a quirky one with many unusual variable values.  The second observation above has very low crime rate at very high police per capita.  The third has extremely low density.  The fourth has extremely high wages in the service industry.
-
 The observations are questionable and affect our model because of their high influence.  We will remove them.
 
 ```{r}
 crime_data <- crime_data %>% slice(-c(25, 51, 79, 84))
 ```
 
-# 4. Exploratory Data Analysis
+# 3. Exploratory Data Analysis
 
 ```{r util_fns}
 # Utility function to describe a column variable
@@ -141,10 +117,12 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
 
 We will start with an explanatory note on transformations.  Any skew in the original data may cause the residuals not to follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
 
+We do not see any top-coding or bottom-coding of variables.  All the variables have their values as-is.
+
 We will now try to get a sense of each variable in the dataset.
 
 ## Single variable analysis
-There are a total of 90 observations across 25 different variables. We will now explore each of the variables collected in the data.
+
 ### Crime rate
 
 Crime rate is the key dependent variable of interest. 
@@ -203,38 +181,14 @@ print(cor(crime_data$prbarr, crime_data$prbconv))
 print(cor(crime_data$prbarr, crime_data$log_prbconv))
 ```
 
-We don't see much correlation and will include *log_prbconv* in our model.
-
----
-
-### Probability of prison sentence
-
-```{r}
-f_describe_col(crime_data$prbpris)
-```
-
-This histogram plot looks fairly normal.  However, correlation is almost nonexistent wrt crime rate.  This is interesting, because whether a crime results in spending time in prison does not seem to affect crime.  This can shape government policies on whether to send criminals to prison or to find alternative ways to reform them.
-
-We will *not* consider this variable in our model.
-
----
-
-### Average sentence duration
-
-```{r}
-f_describe_col(crime_data$avgsen, do_log=TRUE)
-```
-
-The average sentence in days looks slightly positive skewed, which we can correct with a log transform.  But correlation is absent with respect to crime rate.  It is interesting because we would expect that longer sentences would deter crime.
-
-Perhaps we can use this data to make a policy recommendation to reduce sentences over long periods of time, or to be more lenient in pardoning criminals already serving long sentences.
-
-We will *not* consider this variable in our model.
+We don't see much correlation and so, will include *log_prbconv* in our model.
 
 ---
 
 ### Police per capita
-Police per capita has positive skew.  And we observed that taking the log tranformation made the distribution more normal.
+Note: In our first pass, we found an influential outlier with very low crime rate, even at very high police per capita.  We removed it, as mentioned in the section on outliers.
+
+Police per capita has positive skew.  We observed that taking the log tranformation made the distribution more normal.
 
 ```{r}
 f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
@@ -248,7 +202,7 @@ For our first model, we will *not* include this variable.
 ---
 
 ### Population density
-In our first pass, we found an influential outlier where observation #79 has Cook's distance beyond 1, meaning extreme leverage. The value of 0.000020342 seems like an unlikely value for people per square mile. We thus removed it from consideration
+In our first pass, we found an influential outlier where observation #79 has Cook's distance beyond 1, meaning extreme leverage. The value of 0.000020342 seems like an unlikely value for people per square mile. We thus removed it from consideration.
 
 ```{r}
 f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
@@ -276,61 +230,14 @@ We will *not* include this variable in a first model.
 
 ---
 
-### Urban population
-
-```{r}
-print(length(crime_data$urban[crime_data$urban == 1]))
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-boxplot(crime_data$crmrte ~ crime_data$urban, ylab="Crime Rate",
-        main="Crime Rate in rural vs. urban county",
-        names=c("Rural", "Urban"))
-boxplot(crime_data$density ~ crime_data$urban, ylab="Density",
-        main="Density in Rural vs. Urban counties", 
-        names=(c("Rural", "Urban")))
-print(cor(crime_data$urban, log(crime_data$crmrte)))
-
-# TODO Remove
-#print(length(crime_data$urban[crime_data$urban == 1]))
-#urban_crime_data = crime_data %>% filter(urban == 1) %>% dplyr::select(-urban)
-#rural_crime_data = crime_data %>% filter(urban == 0) %>% dplyr::select(-urban)
-#par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-#lmts = range(urban_crime_data$crmrte, rural_crime_data$crmrte)
-#boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
-#boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
-```
-
-It is worth noting that there are only 8 observations classified urban in this dataset.  However, median crime rate in urban regions is double that of rural regions.
-
-Let us fit a model and see if our variable is salient.
-
-```{r include=FALSE}
-print(cor(crime_data$urban, log(crime_data$crmrte)))
-m = lm(log(crmrte) ~ factor(urban), data=crime_data)
-print(summary(m))
-```
-
-We do see a strong correlation between observations classified "urban" and crime rate, and the same is reflected by the low p-value in the model summary.
-
-```{r}
-cor(crime_data$density, crime_data$urban)
-```
-
-We also observe a high correlation betweeb "urban" and "density", so we run a risk of multicollinearity.
-
-Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
-
----
-
 ### Percent minority
-
-# TODO: Relook at the graphs
 
 ```{r}
 f_describe_col(crime_data$pctmin80, plot_model=TRUE, do_sqrt=TRUE)
 crime_data$sqrt_pctmin80 = sqrt(crime_data$pctmin80)
 ```
 
-Minority percentage has positive skew, but no outliers.  Taking square root reshapes the distribution nicely.
+Minority percentage has positive skew, but no outliers.  Taking square root reshapes the distribution somewhat.
 
 There is a fair amount of positive correlation with crime rate (0.27).  It may be that as minorities increase, there is loss of social homogeneity and/or hate crime.
 
@@ -343,17 +250,16 @@ We will include this (transformed) variable in our model.
 Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
 
 ```{r}
-crime_data= filter(crime_data, wser<2177)
 par(mfrow=c(3,4), mai=c(0.35,0.35,0.35,0.35))
-hist(crime_data$wcon, title="wcon")
-hist(crime_data$wloc, title="wloc")
-hist(crime_data$wtrd, title="wtrd")
-hist(crime_data$wtuc, title="wtuc")
-hist(crime_data$wfir, title="wfir")
-hist(crime_data$wser, title="wser")
-hist(crime_data$wmfg, title="wmfg")
-hist(crime_data$wfed, title="wfed")
-hist(crime_data$wsta, title="wsta")
+hist(crime_data$wcon, main="wcon")
+hist(crime_data$wloc, main="wloc")
+hist(crime_data$wtrd, main="wtrd")
+hist(crime_data$wtuc, main="wtuc")
+hist(crime_data$wfir, main="wfir")
+hist(crime_data$wser, main="wser")
+hist(crime_data$wmfg, main="wmfg")
+hist(crime_data$wfed, main="wfed")
+hist(crime_data$wsta, main="wsta")
 ```
 
 Most of the wage variables conform to normal distributions.  We do not have to worry about transformations.
@@ -374,18 +280,6 @@ We will *not* include wages in a first model.  We will use $wfed$ as a proxy var
 
 ---
 
-### Offense Mix
-
-## TODO: Remove diagrams, keep correlation.
-
-```{r}
-f_describe_col(crime_data$mix, do_log=TRUE, plot_model=TRUE)
-```
-
-Offense mix does not seem to have any correlation with crime rate.  The distribution is skewed, but a log transform fixes it.  Outliers exist, but none have leverage as detected by Cook's distance.
-
-We will *not* include offense mix in our models.
-
 ### Percent of young males
 
 ```{r}
@@ -398,6 +292,42 @@ We see moderate positive correlation with higher percentage of young males.  The
 A high percentage of young males can indicate higher aggressiveness and risk, causing higher rate of crime.  We may also see the effect of omitted variables like youth unemployment or low education levels.
 
 We will include this variable in our model.
+
+---
+
+### Urban population
+
+```{r}
+print(length(crime_data$urban[crime_data$urban == 1]))
+urban_crime_data = crime_data %>% filter(urban == 1) %>% dplyr::select(-urban)
+rural_crime_data = crime_data %>% filter(urban == 0) %>% dplyr::select(-urban)
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+lmts = range(urban_crime_data$crmrte, rural_crime_data$crmrte)
+boxplot(urban_crime_data$crmrte, main="Crime: Urban", ylim=lmts)
+boxplot(rural_crime_data$crmrte, main="Crime: Rural", ylim=lmts)
+```
+
+It is worth noting that there are only 8 observations classified urban in this dataset.  However, median crime rate in urban regions is double that of rural regions.
+
+Let us check if there is correlation between "urban" and "density":
+
+```{r}
+cor(crime_data$density, crime_data$urban)
+```
+
+This is quite high, so we run a risk of multicollinearity.
+
+Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
+
+---
+
+### Other variables ignored
+
+The following variables show low to nonexistent correlation with crime rate.  We will *not* consider them in our regression model.
+
+* Probability of prison sentence ($R = 0.0537$)
+* Offense mix ($R = 0.0136$)
+* Average sentence duration ($R = 0.0438$)
 
 ---
 
@@ -415,9 +345,6 @@ We will use these to come up with separate models, based on different factors, l
 Let us check for correlations across predictor pairs.
 
 The correlation plot between the different predictors is as follows:
-
-# TODO: Check correlation matrix one more time.
-# cor(prbarr, polpc) is positive: check again.
 
 ```{r}
 corrplot(
@@ -488,8 +415,7 @@ Let us fit the model:
 ```{r}
 model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
               sqrt_pctmin80 + sqrt_pctymle, data=crime_data)
-summary(model1)
-AIC(model1)
+summary(model1)$adj.r.squared
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model1, which=c(1,2,5))
 ```
@@ -509,8 +435,7 @@ model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               sqrt_pctmin80 + sqrt_pctymle
             + log_polpc + log_taxpc + wfed,
             data=crime_data)
-summary(model2)
-AIC(model2)
+summary(model2)$adj.r.squared
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model2, which=c(1,2,5))
 ```
@@ -525,20 +450,23 @@ model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             + log_polpc + log_taxpc
             + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
-summary(model3)
-vif(model3)
-AIC(model3)
+summary(model2)$adj.r.squared
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model3, which=c(1,2,5))
 ```
 
 This tops fit at about 0.828 (adjusted $R^2$).  It also says $avgsen$ is significant.
 
+```{r}
+AIC(model1, model2, model3)
+```
+
 The AIC scores also reflect the fit: the last model has the best (least) score, whereas the first model has the worst.
 
 ```{r echo=FALSE, results="asis"}
 stargazer(model1, model2, model3, type="latex", digits=3,
-          title="Regression model summary")
+          title="Regression model summary", float=FALSE,
+          header=FALSE)
 ```
 
 # 7. Omitted variables
@@ -559,6 +487,10 @@ We saw that crime rate was correlated positively with wages, tax revenue and pol
 
 * Demographics: Too many single men?  Single parenting?  Orphaned children?  Segregated neighborhoods?  These can lead to trauma and crime.  They may correlate with crime rate to a small degree.
 
+* Repeat crimes:  The data does not have information about serial criminals as against first-time offenders.  If most of the crime is due to repeat offenders, then we will have to accommodate our policies accordingly.
+
+* Underreporting and unreported crimes:  It is also worth checking via other sources how much crime goes unreported in North Carolina, and whether data is often "corrected" as time goes by.
+
 # 8. Conclusion
 
 Based on the above study, here are the conclusions we would like to offer the political campaign:
@@ -570,3 +502,6 @@ Based on the above study, here are the conclusions we would like to offer the po
 * Similarly, wealth as proxied by tax revenue begets crime.  This may also suggest that we have the money and should be able to reroute tax dollars better to fight crime in high-crime areas.
 * Minorities have moderate correlation with crime.  Our policies should address integration of minorities into the mainstream and reduce segregation.
 * Similarly, we should investigate correlation of crime with young men.  If these men are driven to crime due to lack of education or unemployment (omitted variables in this dataset), we should pay attention to reforming our education or job market.
+
+# TODO:
+# Explain the model visualizations
