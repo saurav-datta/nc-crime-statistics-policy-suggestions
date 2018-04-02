@@ -56,17 +56,21 @@ crime_data = distinct(crime_data)
 
 We found the following observations to have outsized influence as measured by Cook's distance (> 1):
 
-* $wser$, observation #84: extremely high service wages
-* $density$, observation #79: extremely low density
+* $prbconv$, observation #6: extremely low conviction rate
 * $polpc$, observation #51: very low crime rate at high police per capita
+* $density$, observation #79: extremely low density
+* $wser$, observation #84: extremely high service wages
+* $polpc$, observation #89: large outlier causes skew
 
 ```{r}
-par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 m = lm(log(crime_data$crmrte) ~ crime_data$wser)
 plot(m, which=5, caption=NA)
 m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
 plot(m, which=5, caption=NA)
 m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
+plot(m, which=5, caption=NA)
+m = lm(log(crime_data$crmrte) ~ log(crime_data$prbconv))
 plot(m, which=5, caption=NA)
 ```
 
@@ -75,7 +79,7 @@ Finally, observation #25 causes outliers in the final model fit due to a lot of 
 The observations are questionable and affect our model because of their high influence.  We will remove them.
 
 ```{r}
-crime_data <- crime_data %>% slice(-c(25, 51, 79, 84))
+crime_data <- crime_data %>% slice(-c(6, 25, 51, 79, 84, 89))
 ```
 
 # 3. Exploratory Data Analysis
@@ -109,8 +113,7 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   if (is.numeric(col))
     abline(m, col="blue")
   if (plot_model == TRUE) {
-    # To reduce #pages in report
-    # plot(m, which=5, caption=NA)
+    plot(m, which=5, caption=NA)
   }
 }
 ```
@@ -155,7 +158,7 @@ We see that high-crime areas are in central, urban North Carolina.
 f_describe_col(crime_data$prbarr, plot_model=TRUE)
 ```
 
-The plot looks fairly normal; there is only one outlier.
+The plot looks fairly normal; there is only one outlier that corresponds to the high arrest probability of 0.7.  It is not influential, so we will keep it.
 
 There is fairly negative correlation of -0.37: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent, indicating causality.
 
@@ -166,7 +169,7 @@ We will include $prbarr$ in our model.
 ### Probability of conviction
 
 ```{r}
-f_describe_col(crime_data$prbconv, do_log=TRUE)
+f_describe_col(crime_data$prbconv, do_log=TRUE, plot_model=TRUE)
 crime_data$log_prbconv = log(crime_data$prbconv)
 ```
 
@@ -287,7 +290,7 @@ f_describe_col(crime_data$pctymle, do_sqrt=TRUE, plot_model=TRUE)
 crime_data$sqrt_pctymle = sqrt(crime_data$pctymle)
 ```
 
-We see moderate positive correlation with higher percentage of young males.  There is positive skew, which we correct by taking a square root.  Boxplot shows outliers, but none has outsized influence (Cook's distance < 0.5).
+We see moderate positive correlation with higher percentage of young males.  There is positive skew, which we correct by taking a square root.  Boxplot shows outliers, but none has outsized influence (Cook's distance > 1).
 
 A high percentage of young males can indicate higher aggressiveness and risk, causing higher rate of crime.  We may also see the effect of omitted variables like youth unemployment or low education levels.
 
@@ -411,15 +414,11 @@ par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model1, which=c(1,2,5))
 ```
 
-The model shows a fit of about 0.79 as measured by adjusted $R^2$.  There are a few (non-normal) outliers at the bottom left of the QQ-plot due to data skew.
-
-It is interesting that the model does not consider $pctymle$ to be a significant predictor.
+The model shows a fit of about 0.785 as measured by adjusted $R^2$.  There are a few (non-normal) outliers at the bottom left of the QQ-plot due to data skew that we could not correct via transformations.  This is for $density$, $pctymle$ variables, which were quite skewed to begin with.
 
 Next, let us include some more variables, as model 2.  In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
 
 We do not include outcome variables that absorb causal effect (by having negative correlation).
-
-# TODO: Remove qqplot from model2, model3?
 
 ```{r}
 model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
@@ -431,7 +430,7 @@ par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model2, which=c(1,2,5))
 ```
 
-The fit improves to 0.808 (adjusted $R^2$).  Although we added it, the wage $wfed$ is not significant.  $taxpc$ is not significant either. 
+The fit improves to 0.824 (adjusted $R^2$).  This is because some of the newly added variables are more normal in distribution (=less skew).
 
 We will now build a third model that includes almost all the variables, for the sake of completeness and comparison.  We only exclude wages because their distribution is highly alike.
 
@@ -446,7 +445,7 @@ par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model3, which=c(1,2,5))
 ```
 
-This tops fit at about 0.828 (adjusted $R^2$).  It also says $avgsen$ is significant.
+This tops fit at about 0.841 (adjusted $R^2$).  However, it is worth noting that the benefit is not much: all those extra variables improved the fit by less than 2%.
 
 ```{r}
 AIC(model1, model2, model3)
@@ -498,15 +497,29 @@ We saw that crime rate was correlated positively with wages, tax revenue and pol
 
 * Poverty: What is the average family income?  If income is low for a family as a unit, that may lead to crime.  Higher poverty correlates with higher crime rate to a large extent.
 
-* Family size: What is the average family size?  If the family size is large, then the income may not be sufficient.  Large family sizes may correlate with crime rate to a small degree.
+* Family income to size ratio: What is the average family size?  If the family size is large, then the income may not be sufficient.  Large family sizes may correlate with crime rate to a small degree.
 
 * Alcoholism and substance abuse: Patient data from hospitals and police data can be a good marker to judge this.  High number of cases of drug abuse correlates with higher crime rate to a large extent.
 
-* Demographics: Too many single men?  Single parenting?  Orphaned children?  Segregated neighborhoods?  These can lead to trauma and crime.  They may correlate with crime rate to a small degree.
+* Social factors and family cohesiveness: Too many single men?  Single parenting?  Orphaned children?  Segregated neighborhoods?  These can lead to trauma and crime.  They may correlate with crime rate to a small degree.
 
 * Repeat crimes:  The data does not have information about serial criminals as against first-time offenders.  If most of the crime is due to repeat offenders, then we will have to accommodate our policies accordingly.
 
 * Underreporting and unreported crimes:  It is also worth checking via other sources how much crime goes unreported in North Carolina, and whether data is often "corrected" as time goes by.
+
+* Neighborhood crime watch:  Do neighborhoods have crime-watch communities?  Having such vigil can reduce crime in areas of high density.
+
+We can talk about biases for a lot of the above omitted variables:
+
+Education, neighborhood watch, family cohesiveness:
+
+* Positive bias on: taxpc
+* Negative bias on: prbarr, prbconv, prbpris, avgsen
+
+Unemployment, poverty, family-income-to-size ratio, substance abuse:
+
+* Positive bias on: prbarr, prbconv, prbpris, avgsen
+* Negative bias on: taxpc
 
 # 8. Conclusion
 
@@ -519,6 +532,3 @@ Based on the above study, here are the conclusions we would like to offer the po
 * Similarly, wealth as proxied by tax revenue begets crime.  This may also suggest that we have the money and should be able to reroute tax dollars better to fight crime in high-crime areas.
 * Minorities have moderate correlation with crime.  Our policies should address integration of minorities into the mainstream and reduce segregation.
 * Similarly, we should investigate correlation of crime with young men.  If these men are driven to crime due to lack of education or unemployment (omitted variables in this dataset), we should pay attention to reforming our education or job market.
-
-# TODO:
-# Explain the model visualizations
