@@ -329,16 +329,7 @@ The following variables show low to nonexistent correlation with crime rate.  We
 * Offense mix ($R = 0.0136$)
 * Average sentence duration ($R = 0.0438$)
 
----
-
-### Categorical variables
-
-We have the following categorical variables in the dataset:
-
-* Direction: west, central, other
-* Urban or rural
-
-We will use these to come up with separate models, based on different factors, later in this analysis. [TODO: Saurav]
+In addition, we will use geographic regions to come up with separate models, later in this analysis.
 
 ## 5. Correlation Analysis
 
@@ -462,6 +453,32 @@ AIC(model1, model2, model3)
 ```
 
 The AIC scores also reflect the fit: the last model has the best (least) score, whereas the first model has the worst.
+
+### Model 4
+
+We will now attempt to develop a custom model based on geographical region.
+
+```{r}
+crime_west = crime_data %>% filter(west==1)
+crime_central = crime_data %>% filter(central==1)
+crime_other_region = crime_data %>% filter(central==0 & west==0)
+
+formula = log_crmrte ~ log_density + sqrt_pctymle + sqrt_pctmin80 +
+  prbarr + log_prbconv + log_taxpc
+
+logcrmrte.west.lm4a = lm(formula, data=crime_west)
+summary(logcrmrte.west.lm4a)$r.squared
+
+logcrmrte.central.lm4b = lm(formula, data=crime_central)
+summary(logcrmrte.central.lm4b)$r.squared
+
+logcrmrte.other_rgn.lm4c = lm(formula, data=crime_other_region)
+summary(logcrmrte.other_rgn.lm4c)$r.squared
+```
+
+The models for West and Central regions are better than the general model 2 we have in terms of adjusted $R^2$.
+
+However, for other regions, our model has lower adjusted $R^2$ than West or Central. This shows that the observations for other regions need to be analyzed with a model different from the generic one.  It could also be that our model is influenced heavily by the observations from the urban areas in West and Central.
 
 ```{r echo=FALSE, results="asis"}
 stargazer(model1, model2, model3, type="latex", digits=3,
