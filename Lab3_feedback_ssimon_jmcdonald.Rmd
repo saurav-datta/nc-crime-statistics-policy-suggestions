@@ -30,6 +30,14 @@ More cleanup is possible: there is one duplicate record.
 
 We also cleaned up records with outsized influence in this section (Cook's distance > 1).
 
+The EDA involves 3 pieces:
+a) Omitting NA's in crime
+b) Changing county, year, west, central, urban to factor
+c) Casting prbconv to numeric
+
+Beyond the 3 EDA, the team goes on to normalize the variables. If there are outliers and extreme values, the normalization be ineffective. There could have been more data analysis to find outliers.
+
+
 ### The Initial EDA
 
 _Is the EDA presented in a systematic and transparent way? Did the team notice any anomalous values? Is there a sufficient justification for any datapoints that are removed? Did the report note any coding features that affect the meaning of variables (e.g. top-coding or bottom-coding)? Can you identify anything the team could do to improve its understanding or treatment of the data?_
@@ -44,7 +52,8 @@ We would like the EDA to note influential outliers and possibly eliminate them i
 
 Along with graphs, we would appreciate "points of interest" for each variable: what should we make note of this graph?  What stands out about it?  If there is nothing remarkable, it is still worth mentioning it.
 
-EDA shows a correlation heat map, but does not try to analyze or provide remarks on anything interesting in the figure.
+EDA shows a correlation heat map, but does not try to analyze or provide remarks on anything interesting in the figure. The heatmap does not use the transformed variables, so the heatmap becomes less effective.
+
 
 ### The Model Building Process
 
@@ -60,6 +69,13 @@ We would appreciate why the model chose to use those variables: e.g., "We think 
 
 Only Model 4 uses transforms and gets a fit of 0.49 per $R^2$.  We think this is low, and it may be because the study did not remove outliers.
 
+
+Violation of instructions:
+
+1) The team used ols_step_forward_p to find the the model with the best fit. ols_step_forward_p has not been covered in the course.
+
+2) Concepts like bptest, shapiro.test, histogram of residuals were not covered in the course at the time of this draft.
+
 ### The Regression Table
 
 _Are the model specifications properly chosen to outline the boundary of reasonable choices? Is it easy to find key coefficients in the regression table? Does the text include a discussion of practical significance for key effects?_
@@ -69,6 +85,10 @@ It is easy to find key coefficients in the regression table.
 We did not see a lot of textual analysis of why certain variables were chosen.
 
 We did not see practical significance for key effects either.
+
+Violation of instructions:
+
+1) The team used vcovHC for handling heteroskedasticity which was not covered in the course at the time of this draft.
 
 ### The Omitted Variables Discussion
 
@@ -83,7 +103,7 @@ It would be nice to have a list of how some of the omitted variables can bias so
 
 _Does the conclusion address the big-picture concerns that would be at the center of a political campaign? Does it raise interesting points beyond numerical estimates? Does it place relevant context around the results?_
 
-We do not see a cogent conclusion or a clear set of recommendations to the local government.  It can be useful to talk in terms of variables (polpc, prbarr, prbconv, density), but it is more useful to go holistic and talk in terms of what makes sense and what does not.
+We do not see a cogent conclusion or a clear set of recommendations to the local government; this weakens the introduction statement "relationships are better understood we will use them to provide policy recommendations" .  It can be useful to talk in terms of variables (polpc, prbarr, prbconv, density), but it is more useful to go holistic and talk in terms of what makes sense and what does not.
 
 How would the report address questions such as: since police in high crime is intuitive, what should be the policy recommendation?  An idea would be to check on the effectiveness of the police force.  Given the low correlations of some of the variables with crime rate, can we have some policy changes (e.g. see avgsen)?
 
