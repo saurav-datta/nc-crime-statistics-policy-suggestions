@@ -49,6 +49,9 @@ crime_data = na.omit(crime_data_raw)
 # convert factor to numeric for variable prbconv
 crime_data$prbconv = as.numeric(levels(crime_data$prbconv)[crime_data$prbconv])
 crime_data = crime_data %>% dplyr::select(-c(year, county))
+# convert percentages into (0, 100) range
+crime_data$pctmin80 = crime_data$pctmin80 * 100
+crime_data$pctymle = crime_data$pctymle * 100
 # remove duplicate record
 duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
@@ -84,6 +87,8 @@ crime_data <- crime_data %>% slice(-c(6, 25, 51, 79, 84, 89))
 
 # 3. Exploratory Data Analysis
 
+We will now try to get a sense of each variable in the dataset.  First, a utility function to describe a variable.
+
 ```{r util_fns}
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
@@ -118,24 +123,18 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
 }
 ```
 
-We will start with an explanatory note on transformations.  Any skew in the original data may cause the residuals not to follow normal distribution.  If this happens, it violates an assumption of the LS regression model: we will not be able to draw inferences from our model.  Hence it is important to ensure our residuals to follow normal distribution as much as possible, and to transform our predictors if that helps.
-
-We do not see any top-coding or bottom-coding of variables.  All the variables have their values as-is.
-
-We will now try to get a sense of each variable in the dataset.
-
 ## Single variable analysis
 
 ### Crime rate
 
-Crime rate is the key dependent variable of interest. 
+Crime rate is the key dependent variable of interest.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-hist(crime_data$crmrte, main = "Crime rate", 
+hist(crime_data$crmrte, main = "Crime rate",
      xlab="Crime Rate")
 boxplot(crime_data$crmrte, main = "Boxplot")
-hist(log(crime_data$crmrte), main = "Crime rate", 
+hist(log(crime_data$crmrte), main = "Crime rate",
      xlab="Log of Crime Rate")
 crime_data$log_crmrte = log(crime_data$crmrte)
 ```
@@ -236,15 +235,14 @@ We will *not* include this variable in a first model.
 ### Percent minority
 
 ```{r}
-f_describe_col(crime_data$pctmin80, plot_model=TRUE, do_sqrt=TRUE)
-crime_data$sqrt_pctmin80 = sqrt(crime_data$pctmin80)
+f_describe_col(crime_data$pctmin80, plot_model=TRUE)
 ```
 
-Minority percentage has positive skew, but no outliers.  Taking square root reshapes the distribution somewhat.
+Minority percentage has a bit positive skew, but no outliers.  The range is quite limited.
 
 There is a fair amount of positive correlation with crime rate (0.27).  It may be that as minorities increase, there is loss of social homogeneity and/or hate crime.
 
-We will include this (transformed) variable in our model.
+We will include this variable in our model.
 
 ---
 
@@ -270,7 +268,7 @@ Most of the wage variables conform to normal distributions.  We do not have to w
 Let us look which of them have high correlation with crime rate, considering all those with $R > 0.25$ (arbitrarily).
 
 ```{r}
-wage_cols = c("log_crmrte", "wcon", "wloc", "wtrd", "wtuc", "wfir", 
+wage_cols = c("log_crmrte", "wcon", "wloc", "wtrd", "wtuc", "wfir",
               "wser", "wmfg", "wfed", "wsta")
 corrplot(cor(crime_data[, wage_cols]), type="upper", diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
 ```
@@ -286,11 +284,10 @@ We will *not* include wages in a first model.  We will use $wfed$ as a proxy var
 ### Percent of young males
 
 ```{r}
-f_describe_col(crime_data$pctymle, do_sqrt=TRUE, plot_model=TRUE)
-crime_data$sqrt_pctymle = sqrt(crime_data$pctymle)
+f_describe_col(crime_data$pctymle, plot_model=TRUE)
 ```
 
-We see moderate positive correlation with higher percentage of young males.  There is positive skew, which we correct by taking a square root.  Boxplot shows outliers, but none has outsized influence (Cook's distance > 1).
+We see moderate positive correlation with higher percentage of young males.  Boxplot shows outliers, but none has outsized influence (Cook's distance > 1).
 
 A high percentage of young males can indicate higher aggressiveness and risk, causing higher rate of crime.  We may also see the effect of omitted variables like youth unemployment or low education levels.
 
@@ -334,7 +331,7 @@ The following variables show low to nonexistent correlation with crime rate.  We
 
 In addition, we will use geographic regions to come up with separate models, later in this analysis.
 
-## 4. Correlation Analysis
+# 4. Correlation Analysis
 
 Let us check for correlations across predictor pairs.
 
@@ -343,9 +340,9 @@ The correlation plot between the different predictors is as follows:
 ```{r}
 corrplot(
   cor(crime_data[,
-                        c("prbarr", "log_prbconv", "prbpris", "avgsen", 
-                          "log_polpc", "log_density", "log_taxpc", "sqrt_pctmin80", "mix", 
-                          "sqrt_pctymle", "wfir", "wfed")
+                        c("prbarr", "log_prbconv", "prbpris", "avgsen",
+                          "log_polpc", "log_density", "log_taxpc", "pctmin80", "mix",
+                          "pctymle", "wfir", "wfed")
                         ]),
          type = "upper",
   diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
@@ -361,7 +358,7 @@ The following correlations are worth a remark:
 
 - Probability of arrest correlates negatively (-0.38) with density, indicating that criminals get away with crime in populous areas.  It also correlates negatively (-0.30) with probability of conviction, indicating higher chance of false arrests when a large number of arrests are made.
 
-## 5. Model development
+# 5. Model development
 
 ### Summary of variables
 
@@ -385,7 +382,7 @@ Here is a summary table of variables we will use in our models.
 | wcon     |            |         |         |         | Omit var: wealth |
 | wtuc     |            |         |         |         | Proxied |
 | wtrd     |            |         |         |         |   -"-   |
-| wfir     |            |         |         | Y       |         | 
+| wfir     |            |         |         | Y       |         |
 | wser     |            |         |         |         |         |
 | wmfg     |            |         |         |         |         |
 | wfed     |            |         | Y       | Y       | Proxy   |
@@ -407,8 +404,8 @@ $$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_
 Let us fit the model:
 
 ```{r}
-model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
-              sqrt_pctmin80 + sqrt_pctymle, data=crime_data)
+model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80 + pctymle, data=crime_data)
 summary(model1)$adj.r.squared
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model1, which=c(1,2,5))
@@ -421,8 +418,8 @@ Next, let us include some more variables, as model 2.  In this model we also inc
 We do not include outcome variables that absorb causal effect (by having negative correlation).
 
 ```{r}
-model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
-              sqrt_pctmin80 + sqrt_pctymle
+model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80 + pctymle
             + log_polpc + log_taxpc + wfed,
             data=crime_data)
 summary(model2)$adj.r.squared
@@ -435,8 +432,8 @@ The fit improves to 0.824 (adjusted $R^2$).  This is because some of the newly a
 We will now build a third model that includes almost all the variables, for the sake of completeness and comparison.  We only exclude wages because their distribution is highly alike.
 
 ```{r}
-model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density + 
-              sqrt_pctmin80 + sqrt_pctymle
+model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80 + pctymle
             + log_polpc + log_taxpc
             + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
@@ -462,7 +459,7 @@ crime_west = crime_data %>% filter(west==1)
 crime_central = crime_data %>% filter(central==1)
 crime_other_region = crime_data %>% filter(central==0 & west==0)
 
-formula = log_crmrte ~ log_density + sqrt_pctymle + sqrt_pctmin80 +
+formula = log_crmrte ~ log_density + pctymle + pctmin80 +
   prbarr + log_prbconv + log_taxpc
 
 logcrmrte.west.lm4a = lm(formula, data=crime_west)
@@ -499,7 +496,7 @@ We first note that the US state of North Carolina is divided in 100 counties (in
 
 #### CLM 3.0 - MultiCollinearity
 From our EDA it was apparent that none of our variables had constant values. In addition, inspection of the correlation
-plot we generated indicates there are no perfectly correlated variable pairs. 
+plot we generated indicates there are no perfectly correlated variable pairs.
 ```{r}
 vif(model2)
 ```
