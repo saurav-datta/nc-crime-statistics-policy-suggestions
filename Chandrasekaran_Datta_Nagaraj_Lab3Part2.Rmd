@@ -22,13 +22,13 @@ The motivation for this report is twofold:
 
 We think the introduction is well-written.
 
+It will be good to call out that the analysis will be done using ordinary least square regressions.
+
 We have the following comments on the clean-up section:
 
 na.omit() is dangerous to use as-is.  It is better to show proof for (1) 6 rows of NA's all over, and (2) no NA's anywhere else, before using it.
 
 More cleanup is possible: there is one duplicate record.
-
-We also cleaned up records with outsized influence in this section (Cook's distance > 1).
 
 The EDA involves 3 pieces:
 a) Omitting NA's in crime
@@ -54,6 +54,8 @@ Along with graphs, we would appreciate "points of interest" for each variable: w
 
 EDA shows a correlation heat map, but does not try to analyze or provide remarks on anything interesting in the figure. The heatmap does not use the transformed variables, so the heatmap becomes less effective.
 
+There isn't much description around $wage$ variable and its transformation, so it is hard to follow what is being done with the data
+
 
 ### The Model Building Process
 
@@ -69,6 +71,7 @@ We would appreciate why the model chose to use those variables: e.g., "We think 
 
 Only Model 4 uses transforms and gets a fit of 0.49 per $R^2$.  We think this is low, and it may be because the study did not remove outliers.
 
+In general, we felt lack of enough explanation in text to understand the meaning of each visualization
 
 Violation of instructions:
 
@@ -115,6 +118,6 @@ _Throughout the report, do you find any errors, faulty logic, unclear or unpersu
 
 We think the conclusion is not as strong as we expected, based on the introduction.  We would like a discussion of each variable from a policy perspective, along with the EDA: e.g., we found it surprising that probability of prison had very little correlation with crime rate.
 
-The text to whitespace/R ratio is quite high in this report.  What's more valuable is to show the analysis and understanding, while using the figures and formulas as props.
+The text to whitespace/R ratio is quite high in this report.  What's more valuable is to show the analysis and understanding, while using the figures and formulas as props. The total page length requirement (of 20 pages) wasn't adhered to in this report. 
 
 A cosmetic but important glitch is the formatting of the report.  It is hard to read it as a PDF perhaps because it was meant to be used as a notebook.  At times, the sections form a continuous run due to missing formatting.
