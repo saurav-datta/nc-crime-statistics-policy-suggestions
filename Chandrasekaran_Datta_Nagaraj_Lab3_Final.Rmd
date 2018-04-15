@@ -506,8 +506,20 @@ vif(model2)
 The variance inflation factor does not provide any evidence of multicollinearity as well. We therefore assume CLM 3.0 condition is satisfied
 
 #### CLM 4.0 - Zero Conditional Mean
+By examining the residuals verus fitted values plot for model, we conclude that the assumption of zero conditional
+mean is met. The red spline curve does not deviate much from zero
+```{r}
+plot(model2, which = 1)
+```
 
 #### CLM 5.0 - Homoskedasticity
+When we examined the residuals versus fitted values plot, it was apparent that the variance of errors to the right of the plot is smaller than the variance of errors in the middle of the plot. This suggested heteroskedasticity, so we examined
+the scale-location plot. The spline curve on the scale-location plot is curved rather than flat, indicating heteroskedasticity.
+Despite this clear violation of CLM, we are able to proceed with our OLS model by using heteroskedasticity-robust
+standard errors.
+```{r}
+plot(model2, which = 3)
+```
 
 #### CLM 6.0 - Normality of error terms
 
