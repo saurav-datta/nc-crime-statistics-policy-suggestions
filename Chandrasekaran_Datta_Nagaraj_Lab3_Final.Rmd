@@ -334,7 +334,7 @@ The following variables show low to nonexistent correlation with crime rate.  We
 
 In addition, we will use geographic regions to come up with separate models, later in this analysis.
 
-## 5. Correlation Analysis
+## 4. Correlation Analysis
 
 Let us check for correlations across predictor pairs.
 
@@ -361,7 +361,7 @@ The following correlations are worth a remark:
 
 - Probability of arrest correlates negatively (-0.38) with density, indicating that criminals get away with crime in populous areas.  It also correlates negatively (-0.30) with probability of conviction, indicating higher chance of false arrests when a large number of arrests are made.
 
-## 6. Model development
+## 5. Model development
 
 ### Summary of variables
 
@@ -485,7 +485,33 @@ stargazer(model1, model2, model3, type="latex", digits=3,
           header=FALSE)
 ```
 
-# 7. Omitted variables
+### CLM on Model 2
+
+#### CLM 1.0 - Linear in parameters
+Our model is represented as:
+$$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ \sqrt{pctmin80} + \beta_6\ \sqrt{pctymle} + \beta_7\ \log{(polpc)} + \beta_8\ \log{(taxpc)} + \beta_9\ {(wfed)}           + u $$
+Any population distribution could be represented as a linear model plus some error (error might be poorly behaved). We chose the above model such that the dependent variable is a linear function of the explanatory variables. Therefore the CLM.1 assumption is met for our all of our models we created
+
+#### CLM 2.0 - Random Sampling
+For this assumption, the data needs to be a random sample drawn from the population.
+
+We first note that the US state of North Carolina is divided in 100 counties (information from Wikipedia). Our dataset contained information from 90 different counties. Though we didn't use data from all counties, there was no indication of non-random sampling during our analysis. We therefore assume that the counties sampled are indeed random and thus our assumption is met for all the models we created
+
+#### CLM 3.0 - MultiCollinearity
+From our EDA it was apparent that none of our variables had constant values. In addition, inspection of the correlation
+plot we generated indicates there are no perfectly correlated variable pairs. 
+```{r}
+vif(model2)
+```
+The variance inflation factor does not provide any evidence of multicollinearity as well. We therefore assume CLM 3.0 condition is satisfied
+
+#### CLM 4.0 - Zero Conditional Mean
+
+#### CLM 5.0 - Homoskedasticity
+
+#### CLM 6.0 - Normality of error terms
+
+# 6. Omitted variables
 
 We have talked about omitted variables as part of our EDA.  Here we continue the discussion and also talk about the direction of bias.
 
@@ -521,7 +547,7 @@ Unemployment, poverty, family-income-to-size ratio, substance abuse:
 * Positive bias on: prbarr, prbconv, prbpris, avgsen
 * Negative bias on: taxpc
 
-# 8. Conclusion
+# 7. Conclusion
 
 Based on the above study, here are the conclusions we would like to offer the political campaign:
 
