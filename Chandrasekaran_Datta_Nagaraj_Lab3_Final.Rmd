@@ -55,6 +55,9 @@ crime_data = crime_data %>% dplyr::select(-c(year, county))
 # convert percentages into (0, 100) range
 crime_data$pctmin80 = crime_data$pctmin80 * 100
 crime_data$pctymle = crime_data$pctymle * 100
+# convert probabilities into (0, 100) range
+crime_data$prbarr = crime_data$prbarr * 100
+crime_data$prbconv = crime_data$prbconv * 100
 # remove duplicate record
 duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
@@ -62,11 +65,13 @@ crime_data = distinct(crime_data)
 
 ### Influential outliers
 
-We now present three outliers we found during our analysis that affect our regression fit.
+We now present some influential outliers we found during our analysis that affect our regression fit.
 
-**$wser$, observation #84:** extremely high service wages. This observation is so skewed that it pulls the regression line of fit.  The county (FIPS: 185) corresponds to Warren; there is nothing in Wikipedia to suggest that this county can command such high service wages.
+In general, the outliers are counties that are heavy on tourism, but with low resident population.  This causes high crime rates and police presence even in the presence of low density, because density probably counts only residents.
 
-We think this is a measurement error and we will remove it.
+$wser$, observation #84: extremely high service wages. This observation is so skewed that it pulls the regression line of fit.  The county (FIPS: 185) corresponds to Warren; there is nothing in Wikipedia to suggest that this county can command such high service wages.
+
+We think this is a measurement error and we will remove it.*
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -92,7 +97,7 @@ abline(m)
 crime_data <- crime_data_tmp
 ```
 
-**$polpc$, observation #51:** highly influential observation.  We need to investigate separately.
+$polpc$, observation #51: highly influential observation, which has very low crime rate, yet very high police per capita.  This observation corresponds to Madison County in the mountains of western NC.  This county gets a lot of tourists, so it may have more police than otherwise.  This merits further investigation.  We will remove it to improve our fit.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -117,7 +122,7 @@ abline(m)
 crime_data <- crime_data_tmp
 ```
 
-**$density$, observation #78:** extremely low density.  Looking at FIPS numbering for the county (173), we see that this corresponds to Swain County, western North Carolina.  This county is almost entirely forested and an influential outlier.  We can remove this county to improve our fit.
+$density$, observation #78: extremely low density.  Looking at FIPS numbering for the county (173), we see that this corresponds to Swain County, western North Carolina.  This county is almost entirely forested and an influential outlier.  It also derives revenue from tourism.  We can remove this county to improve our fit.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -140,11 +145,16 @@ abline(m)
 
 # Remove
 crime_data <- crime_data_tmp
+# See below
 crime_data <- crime_data %>% slice(-25)
 ```
+
 Finally, observation #25 causes outliers in the final model fit due to a lot of influence. It shows very high
-crime rate, very high police per capita, very low density, highest tax per capita, very low minority. It is an
-observation with too many quirks and may merit separate investigation. We decided to remove this from consideration given a high cook's distance (>1) observed with this observation point.
+crime rate and very high police per capita, while also showing very low density, very low minority and highest tax per capita.
+
+The observation corresponds to Dare County, which consists mostly of a sliver of an island.  NCPedia lists seasonal tourism as the primary industry of the county.  This can explain why there is high crime and police presence, even though there is low population density and high tax revenue.
+
+This observation has a high Cook's distance (>1).  It also is an unusual, outlier county; we removed it to improve our model fit.
 
 # 3. Exploratory Data Analysis
 
@@ -310,7 +320,7 @@ We will include this variable in our model.
 
 ```{r}
 sqldf('SELECT COUNT(*) AS Only_Central FROM crime_data WHERE central =1 AND (west!=1 OR urban !=1)')
-sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west =1 AND (central!=1 OR urban !=1)') 
+sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west =1 AND (central!=1 OR urban !=1)')
 sqldf('SELECT COUNT(*) AS Only_Urban FROM crime_data WHERE urban =1 AND (central!=1 and west !=1)')
 
 sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central =1 and west=1 and urban =1')
@@ -514,6 +524,9 @@ Here is a summary table of variables we will use in our models.
 | mix      | log        |         |         | Y       | No corr. found |
 | pctymle  |            | Y       | Y       | Y       | Causal, weak cor  |
 
+
+## Model 1
+
 For the first model, here are the variables we will consider:
 
 * We believe that the following can directly cause higher crime: high density, higher percentage of minorities, higher percentage of young men.
@@ -528,8 +541,6 @@ Let us fit the model:
 model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle, data=crime_data)
 summary(model1)
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-plot(model1)
 ```
 
 The model shows a fit of about 0.784 as measured by adjusted $R^2$.
@@ -541,22 +552,30 @@ The model gets a very low p-value based on its F-statistic, therefore we can rej
 The model shows that $pctymle$ is not statistically significant in our model.  We will proceed to remove it.  On the other hand, all our other independent variables are highly statistically significant.
 
 The model becomes:
-$$\log{(crmrte)} = -3.723 -1.68 \cdot prbarr -0.311 \cdot \log{(prbconv)} + 0.376 \cdot \log{(density)} + 0.000416 \cdot pctmin80$$
+$$ \log{(crmrte)} = -2.744 -0.0138 \cdot prbarr -0.236 \cdot \log{(prbconv)} + 0.420 \cdot \log{(density)} + 0.000150 \cdot pctmin80 $$
 
 **Practical significance:**
 
 From the above regression equation, we can infer the following.  All statements have *ceteris paribus* assumptions:
 
-* If we hold all other variables constant, we have a "base crime rate" of $e^{-3.723} = 0.024$.
+* If we hold all other variables constant, we have a "base crime rate" of $e^{-2.744} = 0.0643$.
 
-* For a unit increase in probability of arrest, crime rate goes down by approximately $|e^{-1.68} - 1| = 0.81$, or 81%. This is a large effect. It shows that law enforcement is a very good deterrent to crime.
+* For a unit increase in "probability" of arrest, crime rate goes down by approximately $|e^{-0.0138} - 1| = 0.0138$, or 1.37%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
 
-* For a 1% increase in probability of conviction, crime rate decreases by about 0.3%. This is not a lot. It may be because most of the effect is already absorbed by $prbarr$.
+* For a 1% increase in "probability" of conviction, crime rate decreases by about 0.3%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
 
-* For a 1% increase in density, crime rate increases by about 0.38%. As we put more people closer, crime is easier to commit and harder to spot.
+* For a 1% increase in density, crime rate increases by about 0.4%.  This is a large effect.  As we put more people closer, crime is easier to commit and harder to spot.
 
-* For a 1% increase in minorities, crime rate increases by about $|e^{0.000416 - 1}| = 0.04\%$. This is a small effect. Compared to the animosity the majority may have over minorities, the effect is very little.
+* For a 1% increase in minorities, crime rate increases by about $|e^{0.000150 - 1}| = 0.015\%$.  This is a minuscule effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
 
+Let us verify if the linear model assumptions hold.
+
+```{r}
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+plot(model1)
+```
+
+## Model 2
 
 Next, let us include some more variables, as model2.  In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
 
@@ -582,14 +601,14 @@ model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             + log_polpc + log_taxpc
             + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
-summary(model3)$adj.r.squared
+summary(model2)
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 plot(model3)
 ```
 
 This tops fit at about 0.824 (adjusted $R^2$).  However, it is worth noting that the benefit is not much: all those extra variables improved the fit by less than 2%.
 
-We see that only prbarr, log_density, pctmin80, log_polpc have a significant effect in model3. 
+We see that only prbarr, log_density, pctmin80, log_polpc have a significant effect in model3.
 
 
 ```{r}
@@ -599,13 +618,13 @@ coeftest(model3, vcov = vcovHC)
 
 
 
-We will now build a variation of model3 that includes  all the wage variable in addition to the model3 variables.  
+We will now build a variation of model3 that includes  all the wage variable in addition to the model3 variables.
 
 ```{r}
 model3b = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc
-            + prbpris + avgsen 
+            + prbpris + avgsen
             + wcon + wloc + wtrd +wtuc + wfir +wser + wmfg + wfed + wsta
               +mix,
             data=crime_data)
@@ -627,13 +646,13 @@ We will investigate if the wage figures together make a difference.
 f_check_null <- function(in_field_name, in_db_name ){
   sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM %s WHERE (%s IS \"NA\" or %s IS NULL or %s = ' ' or %s = '')", in_db_name, in_field_name,in_field_name,in_field_name,in_field_name)
   sqldf(sql)
-  
+
 }
 
 ```
 
 
-Before combining the wage figures, we have to check if any of them are NA or 
+Before combining the wage figures, we have to check if any of them are NA or
 ```{r}
 f_check_null("wcon", "crime_data")
 f_check_null("wloc", "crime_data")
@@ -681,7 +700,7 @@ crime_data = crime_tmp
 model3c = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc
-            + prbpris + avgsen 
+            + prbpris + avgsen
             + sum_wages
               +mix,
             data=crime_data)
