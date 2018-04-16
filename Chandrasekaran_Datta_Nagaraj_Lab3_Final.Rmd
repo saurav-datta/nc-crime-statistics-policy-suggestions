@@ -476,7 +476,26 @@ par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 plot(model1)
 ```
 
-The model shows a fit of about 0.784 as measured by adjusted $R^2$.  There are a few (non-normal) outliers at the bottom left of the QQ-plot due to data skew that we could not correct via transformations.  This is for $density$, $pctymle$ variables, which were quite skewed to begin with.
+The model shows a fit of about 0.784 as measured by adjusted $R^2$.
+
+The model gets a very low p-value based on its F-statistic, therefore we can reject the null hypothesis.  The coefficients are significant.
+
+**Statistical significance:**
+
+The model shows that $pctymle$ is not statistically significant in our model.  We will proceed to remove it.  On the other hand, all our other independent variables are highly statistically significant.
+
+The model becomes:
+$$\log{(crmrte)} = -3.723 -1.68 \cdot prbarr -0.311 \cdot \log{(prbconv)} + 0.376 \cdot \log{(density)} + 0.000416 \cdot pctmin80$$
+
+**Practical significance:**
+
+From the above regression equation, we can infer the following.  All statements have *ceteris paribus* assumptions:
+
+* If we hold all other variables constant, we have a "base crime rate" of $e^{-3.723} = 0.024$.
+* For a unit increase in probability of arrest, crime rate goes down by approximately $|e^{-1.68} - 1| = 0.81$, or 81%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
+* For a 1% increase in probability of conviction, crime rate decreases by about 0.3%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
+* For a 1% increase in density, crime rate increases by about 0.38%.  As we put more people closer, crime is easier to commit and harder to spot.
+* For a 1% increase in minorities, crime rate increases by about $|e^{0.000416 - 1| = 0.04%$.  This is a small effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
 
 Next, let us include some more variables, as model2.  In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
 
