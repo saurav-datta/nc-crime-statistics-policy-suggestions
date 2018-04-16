@@ -732,15 +732,15 @@ This model comes closest to satisfying all 6 CLM assumptions.  We see a nice spl
 coeftest(model3, vcov = vcovHC)
 ```
 
-We will now build a variation of model3 that includes all the wage variable in addition to the model3 variables.
+We will now build a variation of model3 that includes all the wage variables in addition to the model3 variables.  We want to see if the wages are jointly significant.
 
 ```{r}
 model3b = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc
             + prbpris + avgsen
-            + wcon + wloc + wtrd +wtuc + wfir +wser + wmfg + wfed + wsta
-              +mix,
+            + wcon + wloc + wtrd + wtuc + wfir + wser + wmfg + wfed + wsta
+              + mix,
             data=crime_data)
 summary(model3b)$adj.r.squared
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
@@ -752,20 +752,18 @@ The coeftest confirms that none of the wage variables have a significant effect.
 coeftest(model3b, vcov = vcovHC)
 ```
 
-We will investigate if the wage figures together make a difference.
+We will now investigate if the wage figures together make a difference.
 
-```{r Function to check Null or NA}
-f_check_null <- function(in_field_name, in_db_name ){
+```{r echo=FALSE}
+f_check_null <- function(in_field_name, in_db_name ) {
   sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM %s WHERE (%s IS \"NA\" or %s IS NULL or %s = ' ' or %s = '')", in_db_name, in_field_name,in_field_name,in_field_name,in_field_name)
   sqldf(sql)
-
 }
 ```
 
-Before combining the wage figures, we have to check if any of them are NA.
+Before combining the wage figures, we have to check if any of them are NA.  We also check if the wage types are all numeric.
 
 ```{r eval=FALSE}
-# (Evaluate manually to verify)
 f_check_null("wcon", "crime_data")
 f_check_null("wloc", "crime_data")
 f_check_null("wtrd", "crime_data")
@@ -775,12 +773,6 @@ f_check_null("wser", "crime_data")
 f_check_null("wmfg", "crime_data")
 f_check_null("wfed", "crime_data")
 f_check_null("wsta", "crime_data")
-```
-
-We also check if the wage types are all numeric.
-
-```{r eval=FALSE}
-# (Evaluate manually to verify)
 typeof(crime_data$wcon)
 typeof(crime_data$wloc)
 typeof(crime_data$wtrd)
@@ -798,34 +790,21 @@ crime_tmp = sqldf("SELECT *, wcon+wloc+wtrd+wtuc+wfir+wser+wmfg+wfed+wsta AS 'su
                 FROM crime_data" )
 
 sqldf('SELECT sum_wages from crime_tmp LIMIT 5')
-```
-
-```{r}
-crime_data = crime_tmp
-```
-
-
-```{r}
+crime_data_tmp = crime_tmp
 model3c = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc
             + prbpris + avgsen
             + sum_wages
               +mix,
-            data=crime_data)
+            data=crime_data_tmp)
 summary(model3c)$adj.r.squared
-
 ```
 
 
 ```{r}
 coeftest(model3c, vcov = vcovHC)
-
 linearHypothesis(model3c, c("sum_wages = 0"), vcov = vcovHC)
-
-
-#waldtest(model3b, model3c, vcov = vcovHC)
-
 ```
 
 We can see from the coeftest that the sum of wages has no significant effect on the model. A similar conclusion can be drawn from the linearHypothesis test.
