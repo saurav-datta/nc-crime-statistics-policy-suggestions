@@ -203,7 +203,7 @@ Looking at the histogram, the distribution is positively skewed to the left. We 
 Crime rate is mostly low, but there are some observations that show high crime rate (positive outliers).  This causes skew.
 
 ```{r}
-crime_data %>% filter(crmrte > 0.07) %>% select(density, central, urban, prbarr, prbconv)
+crime_data %>% filter(crmrte > 0.07) %>% dplyr::select(density, central, urban, prbarr, prbconv)
 ```
 
 We see that outlier high-crime areas are in central, urban North Carolina.
@@ -280,11 +280,11 @@ We see high positive correlation with crime rate.  It may be that high populatio
 ### Tax revenue per capita
 
 ```{r}
-f_describe_col(crime_data$taxpc, do_log=TRUE, plot_model=TRUE)
+f_describe_col(crime_data$taxpc, do_log=TRUE)
 crime_data$log_taxpc = log(crime_data$taxpc)
 ```
 
-Tax revenue also shows positive skew, with one outlier indicating high tax revenue per capita (>100).  It does not show a lot of leverage, however, so we will keep the value.
+Tax revenue also shows positive skew, with one outlier indicating high tax revenue per capita (>100).  It does not show a lot of leverage (Cook's distance > 1), however, so we will keep the value.
 
 We also see considerable positive correlation with crime rate.  It may be that tax revenue is a proxy for wealth, and high amount of wealth attracts crime.  On the other hand, it is worth checking if we are spending tax dollars wisely in combating crime: if that were the case, counties with higher tax revenue would probably see lower crime.
 
@@ -330,7 +330,8 @@ Let us look which of them have high correlation with crime rate, considering all
 ```{r}
 wage_cols = c("log_crmrte", "wcon", "wloc", "wtrd", "wtuc", "wfir",
               "wser", "wmfg", "wfed", "wsta")
-corrplot(cor(crime_data[, wage_cols]), type="upper", diag=TRUE, addCoef.col="white", addCoefasPercent = TRUE, order="hclust", method="ellipse")
+corrplot(cor(crime_data[, wage_cols]), type="upper", diag=TRUE, addCoef.col="white",
+         addCoefasPercent = TRUE, order="hclust", method="ellipse")
 ```
 
 Indeed, a lot of the wage categories above have a high degree of correlation among them, but all are less than 70.  We cannot eliminate any wage categories this way.
@@ -470,9 +471,9 @@ Let us fit the model:
 ```{r}
 model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle, data=crime_data)
-summary(model1)$adj.r.squared
-par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
-plot(model1, which=c(1,2,5))
+summary(model1)
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+plot(model1)
 ```
 
 The model shows a fit of about 0.784 as measured by adjusted $R^2$.  There are a few (non-normal) outliers at the bottom left of the QQ-plot due to data skew that we could not correct via transformations.  This is for $density$, $pctymle$ variables, which were quite skewed to begin with.
@@ -486,9 +487,9 @@ model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc + wfed,
             data=crime_data)
-summary(model2)$adj.r.squared
-par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
-plot(model2, which=c(1,2,5))
+summary(model2)
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+plot(model2)
 ```
 
 The fit improves to 0.80 (adjusted $R^2$).  This is because some of the newly added variables are more normal in distribution (=less skew).
@@ -501,9 +502,9 @@ model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             + log_polpc + log_taxpc
             + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
-summary(model2)$adj.r.squared
-par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
-plot(model3, which=c(1,2,5))
+summary(model2)
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+plot(model3)
 ```
 
 This tops fit at about 0.824 (adjusted $R^2$).  However, it is worth noting that the benefit is not much: all those extra variables improved the fit by less than 2%.
