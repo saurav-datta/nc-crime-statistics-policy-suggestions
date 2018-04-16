@@ -388,17 +388,17 @@ sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND
 
 ```{r eval=FALSE}
 sqldf('SELECT COUNT(*) AS Only_Central FROM crime_data WHERE central=1 AND 
-      (west!=1 OR urban !=1)')
+      (west!=1 AND urban !=1)')
 sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND 
-      (central!=1 OR urban !=1)')
+      (central!=1 AND urban !=1)')
 sqldf('SELECT COUNT(*) AS Only_Urban FROM crime_data WHERE urban=1 AND 
-      (central!=1 and west !=1)')
-sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 and 
-      west=1 and urban =1')
+      (central!=1 AND west !=1)')
+sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 AND 
+      west=1 AND urban =1')
 sqldf('SELECT COUNT(*) AS Central_And_West FROM crime_data WHERE central=1 
-      and west=1' )
-sqldf('SELECT COUNT(*) AS West_And_Urban FROM crime_data WHERE west=1 and urban=1' )
-sqldf('SELECT COUNT(*) AS Central_And_Urban FROM crime_data WHERE central=1 and
+      AND west=1' )
+sqldf('SELECT COUNT(*) AS West_And_Urban FROM crime_data WHERE west=1 AND urban=1' )
+sqldf('SELECT COUNT(*) AS Central_And_Urban FROM crime_data WHERE central=1 AND
       urban=1' )
 sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central!=1 AND 
       west!=1 AND urban!=1' )
@@ -406,23 +406,30 @@ sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central!=1 AND
 
 We observe the below:
 
->- 33 observations  have been marked as central with no overlap on west or urban
->- 19 observations  have been marked as  west with no overlap on central or urban
->- 2 observations  have been marked as  urban with no overlap on central or west
->- No observations is marked as  urban and  central and west
->- 1 observation  has been marked as both central and west.
->- 1 observation  has been marked as both west and urban
->- 5 observations have been marked as both central and urban
->- 31 observations have not been marked as either west nor central nor urban
+* 27 observations  have been marked as central with no overlap on west or urban
+
+* 18 observations  have been marked as  west with no overlap on central or urban
+
+* 2 observations  have been marked as  urban with no overlap on central or west
+
+* No observations is marked as  urban and  central and west
+
+* 1 observation  has been marked as both central and west.
+
+* 1 observation  has been marked as both west and urban
+
+* 5 observations have been marked as both central and urban
+
+* 32 observations have not been marked as either west nor central nor urban
 
 We interpret this to mean that an attempt was made to mark the observations geographically as well as by urban (or rural). However, the assignment is not complete as we we can see. Some regions have been been given any label as to their region; these may belong to a different geographical region or rural.
 
 
 ```{r}
-crime_data_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND 
-                         (west!=1 OR urban!=1)')
-crime_data_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND 
-                      (central!=1 OR urban!=1)')
+crime_data_sql_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND 
+                         (west!=1 AND urban!=1)')
+crime_data_sql_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND 
+                      (central!=1 AND urban!=1)')
 ```
 
 
@@ -430,11 +437,11 @@ We can see that observations marked as central have a higher maximum crime rate 
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-boxplot(crime_data_central$crmrte, main = "Crime: Central", ylim=c(0.0,0.1))
+boxplot(crime_data_sql_central$crmrte, main = "Crime: Central", ylim=c(0.0,0.1))
 boxplot(crime_data_west$crmrte, main = "Crime: West", ylim=c(0.0,0.1))
-hist(crime_data_central$crmrte, main="Crime: Central", breaks=15, 
+hist(crime_data_sql_central$crmrte, main="Crime: Central", breaks=15, 
      xlim=c(0.0, 0.1), ylim=c(0, 7))
-hist(crime_data_west$crmrte, main="Crime: West", breaks=15, 
+hist(crime_data_sql_west$crmrte, main="Crime: West", breaks=15, 
      xlim=c(0.0, 0.1), ylim=c(0, 7))
 ```
 
@@ -567,39 +574,38 @@ Let us fit the model:
 ```{r}
 model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle, data=crime_data)
-summary(model1)
+summary(model1)$adj.r.squared
 ```
 
 The model shows a fit of about 0.784 as measured by adjusted $R^2$.
 
-The model gets a very low p-value based on its F-statistic, therefore we can reject the null hypothesis.  The coefficients are significant.
-
 **Statistical significance:**
 
-The model shows that $pctymle$ is not statistically significant in our model.  We will proceed to remove it.  On the other hand, all our other independent variables are highly statistically significant.
+*coeftest()* shows that all our variables are statistically significant.  We need this over regular *summary()* because our model is not homoskedastic (explained later).
 
 ```{r}
-model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
-              pctmin80, data=crime_data)
-summary(model1)
+coeftest(model1, vcov = vcovHC)
 ```
 
-Therefore the model becomes:
-$$ \log{(crmrte)} = -2.542 -0.0147 \cdot prbarr -0.253 \cdot \log{(prbconv)} + 0.422 \cdot \log{(density)} + 0.000151 \cdot pctmin80 $$
+Therefore the model becomes (using 2 significant digits for coefficients):
+
+$$ \log{(crmrte)} = -2.7 -0.014 \cdot prbarr -0.24 \cdot \log{(prbconv)} + 0.42 \cdot \log{(density)} + 0.00015 \cdot pctmin80 + 0.014 \cdot pctymle $$
 
 **Practical significance:**
 
 From the above regression equation, we can infer the following.  All statements have *ceteris paribus* assumptions:
 
-* If we hold all other variables constant, we have a "base crime rate" of $e^{-2.542} = 0.079$.
+* If we hold all other variables constant, we have a "base crime rate" of $e^{-2.7} = 0.067$.
 
-* For a unit increase in "probability" of arrest, crime rate goes down by approximately $|e^{-0.0147} - 1| = 0.0146$, or 1.46%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
+* For a unit increase in "probability" of arrest, crime rate goes down by approximately $|e^{-0.014} - 1| = 0.014$, or 1.4%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
 
-* For a 1% increase in "probability" of conviction, crime rate decreases by about 0.25%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
+* For a 1% increase in "probability" of conviction, crime rate decreases by about 0.24%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
 
 * For a 1% increase in density, crime rate increases by about 0.42%.  This is a large effect.  As we put more people closer, crime is easier to commit and harder to spot.
 
-* For a 1% increase in minorities, crime rate increases by about $|e^{0.000151 - 1}| = 0.015\%$.  This is a minuscule effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
+* For a 1% increase in minorities, crime rate increases by about $|e^{0.00015 - 1}| = 0.015\%$.  This is a minuscule effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
+
+* For a 1% increase in young males, crime rate increases by about $e^{0.014 - 1} = 0.015$, or 1.5%.  This is a large effect as well.
 
 ## Verification of CLM Assumptions
 
@@ -613,11 +619,7 @@ hist(model1$residuals, main="Residuals")
 
 #### CLM.1: Linear in parameters
 
-Our model is represented as:
-
-$$ \log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ {pctmin80} + u $$
-
-Any population distribution could be represented as a linear model plus some error (error might be poorly behaved). We chose the above model such that the dependent variable is a linear function of the explanatory variables. Therefore the CLM.1 assumption is met for our all of our models we created
+Any population distribution could be represented as a linear model plus some error (error might be poorly behaved). We chose the above model such that the dependent variable is a linear function of the explanatory variables. Therefore the CLM.1 assumption is met for our all of our models.
 
 #### CLM.2: Random Sampling
 
@@ -641,11 +643,23 @@ The variance inflation factor does not provide any evidence of multicollinearity
 
 By examining the residuals-vs-fitted plot for model, we conclude that the assumption of zero conditional mean is mostly met. The red spline curve is close to zero for the most part, but it does deviate towards the edges.
 
-Although we violate ZCM, we note that our sample size is large (>35).  Hence we can make the asymptotic argument that our bias should already be quite low.
+Although we violate ZCM, we note that our sample size is large (>35).  Hence we will apply the weaker exogeneity condition, by checking if our independent variables have significant covariance with the residuals:
+
+```{r}
+cov(model1$residuals, crime_data$prbarr)
+cov(model1$residuals, crime_data$log_prbconv)
+cov(model1$residuals, crime_data$log_density)
+cov(model1$residuals, crime_data$pctmin80)
+cov(model1$residuals, crime_data$pctymle)
+```
+
+All of them are close to zero.  Hence we can argue that our estimators are consistent, therefore our bias is close to zero.
+
+There are two other corrections possible.  We may have omitted variable(s).  We certainly have many such variables that we list out later in this report.  We could also correct our regression model specification, possibly adding higher-order functions or interaction terms.
 
 #### CLM.5: Homoskedasticity
 
-When we examine the residuals-vs-fitted plot, it is apparent that the variance of errors in the middle of the plot is higher than the variance of errors in the edges of the plot. This suggests heteroskedasticity.  Additionally, the spline curve on the scale-location plot is curved rather than flat, indicating heteroskedasticity.  Despite this violation of CLM, we are able to proceed with our OLS model by using heteroskedasticity-robust standard errors.
+When we examine the residuals-vs-fitted plot, it is apparent that the variance of errors in the middle of the plot is higher than the variance of errors in the edges of the plot. This suggests heteroskedasticity.  Additionally, the spline curve on the scale-location plot is curved rather than flat, indicating heteroskedasticity.
 
 ```{r}
 bptest(model1)
@@ -653,6 +667,8 @@ bptest(model1)
 
 We also conducted the studentized Breusch-Pagan test where the null hypothesis states that the model supports homoskedasticity. The p-value obtained indicates statistical significance that rejects the null hypothesis (=our model violates homoskedasticity).
 
+To address this violation of CLM, we will use heteroskedasticity-robust standard errors in our analyses.
+  
 #### CLM.6: Normality of error terms
 
 Looking at the histogram of the residual term indicates that we do *not* have a normal distribution. This can further be confimed by the Shapiro test. The null hypothesis of this test is that residuals have a normal distribution. The p-value indicates we reject this null hypothesis.
@@ -662,6 +678,8 @@ shapiro.test(model1$residuals)
 ```
 
 However, because we have a large sample, we again make asymptotic argument.  The CLT states that our estimators will have a normal sampling distribution.  Since the skew is not too much, we can still use the model.
+
+Other possibilities include transformations of dependent and/or independent variables, when they exhibit skewed distribution.
 
 ## Model 2
 
@@ -677,14 +695,18 @@ model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc + wfed,
             data=crime_data)
-summary(model2)
+summary(model2)$adj.r.squared
 ```
 
 The fit improves to 0.80 (adjusted $R^2$).  This is because some of the newly added variables are more normal in distribution (=less skew).
 
 **Statistical significance:**
 
-We continue to see $pctymle$ as not significant.  In addition, $log_taxpc$ and $wfed$ are also not statistically significant.  $polpc$ is significant at p=0.05.
+```{r}
+coeftest(model2, vcov = vcovHC)
+```
+
+We now see that $pctymle$ is not significant.  In addition, $log_taxpc$ and $wfed$ are also not statistically significant.  $polpc$ is significant at p=0.05.
 
 Therefore, we will remove the insignificant variables.  The new model becomes:
 
@@ -692,7 +714,7 @@ Therefore, we will remove the insignificant variables.  The new model becomes:
 model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + log_polpc,
             data=crime_data)
-summary(model2)
+summary(model2)$adj.r.squared
 ```
 
 Let us take a look at its plots and check if we violate any of the CLM assumptions:
@@ -701,6 +723,7 @@ Let us take a look at its plots and check if we violate any of the CLM assumptio
 par(mfrow=c(2,2), mai=c(0.35,0.35,0.35,0.35))
 plot(model2, which=c(1,2,3))
 hist(model2$residuals, main="Residuals")
+
 ```
 
 It is worth noting that the spline in residuals-vs-fitted plot has improved now: we do not violate zero conditional men assumption as much as we did before.  But as we noted earlier, since we have a large sample, ZCM and heteroskedasticity do not affect us as much as it would a small sample.
