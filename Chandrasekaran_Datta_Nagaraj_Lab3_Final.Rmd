@@ -389,17 +389,17 @@ sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND
 
 ```{r eval=FALSE}
 sqldf('SELECT COUNT(*) AS Only_Central FROM crime_data WHERE central=1 AND 
-      (west!=1 OR urban !=1)')
+      (west!=1 AND urban !=1)')
 sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND 
-      (central!=1 OR urban !=1)')
+      (central!=1 AND urban !=1)')
 sqldf('SELECT COUNT(*) AS Only_Urban FROM crime_data WHERE urban=1 AND 
-      (central!=1 and west !=1)')
-sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 and 
-      west=1 and urban =1')
+      (central!=1 AND west !=1)')
+sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 AND 
+      west=1 AND urban =1')
 sqldf('SELECT COUNT(*) AS Central_And_West FROM crime_data WHERE central=1 
-      and west=1' )
-sqldf('SELECT COUNT(*) AS West_And_Urban FROM crime_data WHERE west=1 and urban=1' )
-sqldf('SELECT COUNT(*) AS Central_And_Urban FROM crime_data WHERE central=1 and
+      AND west=1' )
+sqldf('SELECT COUNT(*) AS West_And_Urban FROM crime_data WHERE west=1 AND urban=1' )
+sqldf('SELECT COUNT(*) AS Central_And_Urban FROM crime_data WHERE central=1 AND
       urban=1' )
 sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central!=1 AND 
       west!=1 AND urban!=1' )
@@ -407,23 +407,30 @@ sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central!=1 AND
 
 We observe the below:
 
->- 33 observations  have been marked as central with no overlap on west or urban
->- 19 observations  have been marked as  west with no overlap on central or urban
->- 2 observations  have been marked as  urban with no overlap on central or west
->- No observations is marked as  urban and  central and west
->- 1 observation  has been marked as both central and west.
->- 1 observation  has been marked as both west and urban
->- 5 observations have been marked as both central and urban
->- 31 observations have not been marked as either west nor central nor urban
+* 27 observations  have been marked as central with no overlap on west or urban
+
+* 18 observations  have been marked as  west with no overlap on central or urban
+
+* 2 observations  have been marked as  urban with no overlap on central or west
+
+* No observations is marked as  urban and  central and west
+
+* 1 observation  has been marked as both central and west.
+
+* 1 observation  has been marked as both west and urban
+
+* 5 observations have been marked as both central and urban
+
+* 32 observations have not been marked as either west nor central nor urban
 
 We interpret this to mean that an attempt was made to mark the observations geographically as well as by urban (or rural). However, the assignment is not complete as we we can see. Some regions have been been given any label as to their region; these may belong to a different geographical region or rural.
 
 
 ```{r}
-crime_data_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND 
-                         (west!=1 OR urban!=1)')
-crime_data_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND 
-                      (central!=1 OR urban!=1)')
+crime_data_sql_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND 
+                         (west!=1 AND urban!=1)')
+crime_data_sql_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND 
+                      (central!=1 AND urban!=1)')
 ```
 
 
@@ -431,11 +438,11 @@ We can see that observations marked as central have a higher maximum crime rate 
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-boxplot(crime_data_central$crmrte, main = "Crime: Central", ylim=c(0.0,0.1))
+boxplot(crime_data_sql_central$crmrte, main = "Crime: Central", ylim=c(0.0,0.1))
 boxplot(crime_data_west$crmrte, main = "Crime: West", ylim=c(0.0,0.1))
-hist(crime_data_central$crmrte, main="Crime: Central", breaks=15, 
+hist(crime_data_sql_central$crmrte, main="Crime: Central", breaks=15, 
      xlim=c(0.0, 0.1), ylim=c(0, 7))
-hist(crime_data_west$crmrte, main="Crime: West", breaks=15, 
+hist(crime_data_sql_west$crmrte, main="Crime: West", breaks=15, 
      xlim=c(0.0, 0.1), ylim=c(0, 7))
 ```
 
