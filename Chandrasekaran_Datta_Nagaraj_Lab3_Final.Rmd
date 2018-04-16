@@ -58,33 +58,86 @@ duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
-We found the following observations to have outsized influence as measured by Cook's distance (> 1):
+### Influential outliers
 
-* $prbconv$, observation #6: extremely low conviction rate
-* $prbarr$, observation #51: ratio of arrests to offenses is 1.1. It doesn't seem likely that a person will be arrested more than once for the same offense (unless of course we mix in criminals escaping). And this outlier single handedly affects regression line on crime rate as well
-* $density$, observation #79: extremely low density. Such small number of people per square mile likely is erroneous
-* $wser$, observation #84: extremely high service wages. An order of magnitude larger that we deemed likely to be due to data entry error
-* $polpc$, observation #89: large outlier causes skew
+We now present three outliers we found during our analysis that affect our regression fit.
+
+**$wser$, observation #84:** extremely high service wages. This observation is so skewed that it pulls the regression line of fit.  The county (FIPS: 185) corresponds to Warren; there is nothing in Wikipedia to suggest that this county can command such high service wages.
+
+We think this is a measurement error and we will remove it.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-#layout(matrix(c(1,2,3,4), 1, 4), heights = lcm(6))
-m = lm(log(crime_data$crmrte) ~ crime_data$wser)
-plot(m, which=5, caption=NA)
-m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
-plot(m, which=5, caption=NA)
-m = lm(log(crime_data$crmrte) ~ log(crime_data$polpc))
-plot(m, which=5, caption=NA)
-m = lm(log(crime_data$crmrte) ~ log(crime_data$prbconv))
-plot(m, which=5, caption=NA)
+
+# Notice the outlier
+boxplot(crime_data$wser, main="Service wages")
+
+m <- lm(log(crmrte) ~ wser, data = crime_data)
+
+# Notice the leverage of the data point
+plot(m, which = 5, main = "Leverage", caption = NA)
+
+# Note how the line of fit changes after removal
+plot(crime_data$wser, log(crime_data$crmrte), main = "Before removal")
+abline(m)
+
+crime_data_tmp <- crime_data %>% dplyr::slice(-84)
+plot(crime_data_tmp$wser, log(crime_data_tmp$crmrte), main = "After removal")
+m <- lm(log(crmrte) ~ wser, data = crime_data_tmp)
+abline(m)
+
+# Remove
+crime_data <- crime_data_tmp
 ```
 
-Finally, observation #25 causes outliers in the final model fit due to a lot of influence.  It shows very high crime rate, very high police per capita, very low density, highest tax per capita, very low minority.  It is an observation with too many quirks and may merit separate investigation.
-
-The observations are questionable and affect our model because of their high influence.  We will remove them.
+**$polpc$, observation #51:** highly influential observation.  We need to investigate separately.
 
 ```{r}
-crime_data <- crime_data %>% slice(-c(6, 25, 51, 79, 84, 89))
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+
+# Notice the outlier
+boxplot(crime_data$polpc, main = "Police p.c.")
+m <- lm(log(crmrte) ~ polpc, data = crime_data)
+
+# Notice the leverage of the data point
+plot(m, which = 5, main = "Leverage", caption = NA)
+
+# Note how the line of fit changes after removal
+plot(crime_data$polpc, log(crime_data$crmrte), main = "Before removal")
+abline(m)
+
+crime_data_tmp <- crime_data %>% dplyr::slice(-51)
+plot(crime_data_tmp$polpc, log(crime_data_tmp$crmrte), main = "After removal")
+m <- lm(log(crmrte) ~ polpc, data = crime_data_tmp)
+abline(m)
+
+# Remove
+crime_data <- crime_data_tmp
+```
+
+**$density$, observation #78:** extremely low density.  Looking at FIPS numbering for the county (173), we see that this corresponds to Swain County, western North Carolina.  This county is almost entirely forested and an influential outlier.  We can remove this county to improve our fit.
+
+```{r}
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+
+# Notice the outlier
+boxplot(log(crime_data$density), main = "Density")
+m <- lm(log(crmrte) ~ log(density), data = crime_data)
+
+# Notice the leverage
+plot(m, which = 5, caption = NA, main = "Leverage")
+
+# Print "before-after" graphs
+plot(log(crime_data$density), log(crime_data$crmrte), main = "Before removal")
+abline(m)
+
+crime_data_tmp <- crime_data %>% dplyr::slice(-78)
+plot(log(crime_data_tmp$density), log(crime_data_tmp$crmrte), main = "After removal")
+m <- lm(log(crmrte) ~ log(density), data = crime_data_tmp)
+abline(m)
+
+# Remove
+crime_data <- crime_data_tmp
 ```
 
 # 3. Exploratory Data Analysis
@@ -114,13 +167,12 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   }
   m = lm(y ~ x)
   plot(x, y, main="Cor. with crime rate",
-       col=c("green", "red"),
-       xlab="predictor (green)",
-       ylab="crime (red)")
+       xlab="predictor",
+       ylab="crime")
   if (is.numeric(col))
     abline(m, col="blue")
   if (plot_model == TRUE) {
-    plot(m, which=5, caption=NA)
+    plot(m, which=5, caption=NA, main="Leverage")
   }
 }
 ```
@@ -149,14 +201,14 @@ Crime rate is mostly low, but there are some observations that show high crime r
 crime_data %>% filter(crmrte > 0.07) %>% select(density, central, urban, prbarr, prbconv)
 ```
 
-We see that high-crime areas are in central, urban North Carolina.
+We see that outlier high-crime areas are in central, urban North Carolina.
 
 ---
 
 ### Probability of arrest
 
 ```{r}
-f_describe_col(crime_data$prbarr, plot_model=TRUE)
+f_describe_col(crime_data$prbarr)
 ```
 
 The plot looks fairly normal; there is only one outlier that corresponds to the high arrest probability of 0.7.  It is not influential, so we will keep it.
@@ -170,7 +222,7 @@ We will include $prbarr$ in our model.
 ### Probability of conviction
 
 ```{r}
-f_describe_col(crime_data$prbconv, do_log=TRUE, plot_model=TRUE)
+f_describe_col(crime_data$prbconv, do_log=TRUE)
 crime_data$log_prbconv = log(crime_data$prbconv)
 ```
 
@@ -195,7 +247,7 @@ Note: In our first pass, we found an influential outlier with very low crime rat
 Police per capita has positive skew.  We observed that taking the log tranformation made the distribution more normal.
 
 ```{r}
-f_describe_col(crime_data$polpc, do_log=TRUE, plot_model=TRUE)
+f_describe_col(crime_data$polpc, do_log=TRUE)
 crime_data$log_polpc = log(crime_data$polpc)
 ```
 
@@ -206,10 +258,11 @@ For our first model, we will *not* include this variable.
 ---
 
 ### Population density
+
 In our first pass, we found an influential outlier where observation #79 has Cook's distance beyond 1, meaning extreme leverage. The value of 0.000020342 seems like an unlikely value for people per square mile. We thus removed it from consideration.
 
 ```{r}
-f_describe_col(crime_data$density, do_log=TRUE, plot_model=TRUE)
+f_describe_col(crime_data$density, do_log=TRUE)
 crime_data$log_density = log(crime_data$density)
 ```
 
@@ -237,7 +290,7 @@ We will *not* include this variable in a first model.
 ### Percent minority
 
 ```{r}
-f_describe_col(crime_data$pctmin80, plot_model=TRUE)
+f_describe_col(crime_data$pctmin80)
 ```
 
 Minority percentage has a bit positive skew, but no outliers.  The range is quite limited.
@@ -364,6 +417,12 @@ The following correlations are worth a remark:
 
 ### Summary of variables
 
+We will now fit three models based on our analysis.  A quick overview:
+
+* Model 1 will have variables we think are causal in nature
+* Model 2 will have a few additional variables that show high correlation
+* Model 3 will have almost all variables: a useful benchmark
+
 Here is a summary table of variables we will use in our models.
 
 | Variable | Transform? | Model1? | Model2? | Model3? | Remarks |
@@ -393,9 +452,7 @@ Here is a summary table of variables we will use in our models.
 | mix      | log        |         |         | Y       | No corr. found |
 | pctymle  | sqrt       | Y       | Y       | Y       | Causal, weak cor  |
 
-As outlined in the table above, here are three models we propose.
-
-The first model includes what we think would be only causal variables.
+For the first model, here are the variables we will consider:
 
 * We believe that the following can directly cause higher crime: high density, higher percentage of minorities, higher percentage of young men.
 
@@ -488,7 +545,7 @@ stargazer(model1, model2, model3, type="latex", digits=3,
 
 #### CLM 1.0 - Linear in parameters
 Our model is represented as:
-$$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ \sqrt{pctmin80} + \beta_6\ \sqrt{pctymle} + \beta_7\ \log{(polpc)} + \beta_8\ \log{(taxpc)} + \beta_9\ {(wfed)}           + u $$
+$$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ pctmin80 + \beta_6\ pctymle + \beta_7\ \log{(polpc)} + \beta_8\ \log{(taxpc)} + \beta_9\ {(wfed)}           + u $$
 Any population distribution could be represented as a linear model plus some error (error might be poorly behaved). We chose the above model such that the dependent variable is a linear function of the explanatory variables. Therefore the CLM.1 assumption is met for our all of our models we created
 
 #### CLM 2.0 - Random Sampling
