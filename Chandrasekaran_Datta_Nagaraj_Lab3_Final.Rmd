@@ -15,6 +15,8 @@ library(corrplot)
 library(stargazer)
 library(dplyr)
 library(sqldf)
+library(lmtest)
+library(sandwich)
 ```
 
 # 1. Introduction
@@ -512,10 +514,15 @@ This tops fit at about 0.841 (adjusted $R^2$).  However, it is worth noting that
 
 We see that only prbarr, log_density, pctmin80, log_polpc have a significant effect in model3. 
 
+
 ```{r}
 coeftest(model3, vcov = vcovHC)
 
+
+
 ```
+
+
 
 We will now build a variation of model3 that includes  all the wage variable in addition to the model3 variables.  
 
@@ -710,37 +717,26 @@ plot(model2, which = 3)
 
 We have talked about omitted variables as part of our EDA.  Here we continue the discussion and also talk about the direction of bias.
 
-We saw that crime rate was correlated positively with wages, tax revenue and police per capita.  None of these can cause crime.  We instead suspected urban petty crimes to be the cause of those correlations.  Similarly, we can think of several omitted variables that can help us develop causal models:
 
-* Education: What is the average number of years of education?  Uneducated people are more likely to get into crime for fast money.  Higher amounts of education should correlate negatively with crime rate to a large extent.
+The important omitted variables that come to mind are:
 
-* Unemployment: What fraction of the population is unemployed?  Lack of income can drive people to crime.  Lower amounts of unemployment should correlate negatively with crime rate to a large extent.
+* Median level of education in the county: The median level of education in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
 
-* Poverty: What is the average family income?  If income is low for a family as a unit, that may lead to crime.  Higher poverty correlates with higher crime rate to a large extent.
+* Median ratio of total household income to number of family members: The median ratio of total household income to number of family members in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen, and a positive correlation with taxpc. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive. For a model using taxpc, the OVB bias would be negative
 
-* Family income to size ratio: What is the average family size?  If the family size is large, then the income may not be sufficient.  Large family sizes may correlate with crime rate to a small degree.
+* Total number of neighbourhood crime watch groups in the county: The total number of neighbourhood crime watch groups in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive
 
-* Alcoholism and substance abuse: Patient data from hospitals and police data can be a good marker to judge this.  High number of cases of drug abuse correlates with higher crime rate to a large extent.
+* Family cohesiveness such as divorce rate, domestic violence:  This maybe difficult to measure.The family cohesiveness measure may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
 
-* Social factors and family cohesiveness: Too many single men?  Single parenting?  Orphaned children?  Segregated neighborhoods?  These can lead to trauma and crime.  They may correlate with crime rate to a small degree.
+* Any extreme climate change when the crime occured. This can be a significant change compared to the expected climate in that month. Higher temperatures lead to high tempers and may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+
+* Alcoholism and substance abuse: Patient data from hospitals and police data can be a good marker to judge this.  High number of cases of drug abuse correlates with higher crime rate to a large extent. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
 
 * Repeat crimes:  The data does not have information about serial criminals as against first-time offenders.  If most of the crime is due to repeat offenders, then we will have to accommodate our policies accordingly.
 
 * Underreporting and unreported crimes:  It is also worth checking via other sources how much crime goes unreported in North Carolina, and whether data is often "corrected" as time goes by.
 
-* Neighborhood crime watch:  Do neighborhoods have crime-watch communities?  Having such vigil can reduce crime in areas of high density.
 
-We can talk about biases for a lot of the above omitted variables:
-
-Education, neighborhood watch, family cohesiveness:
-
-* Positive bias on: taxpc
-* Negative bias on: prbarr, prbconv, prbpris, avgsen
-
-Unemployment, poverty, family-income-to-size ratio, substance abuse:
-
-* Positive bias on: prbarr, prbconv, prbpris, avgsen
-* Negative bias on: taxpc
 
 # 7. Conclusion
 
