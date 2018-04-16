@@ -393,7 +393,7 @@ sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND
       (central!=1 AND urban !=1)')
 sqldf('SELECT COUNT(*) AS Only_Urban FROM crime_data WHERE urban=1 AND 
       (central!=1 AND west !=1)')
-sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 AND 
+sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 AND
       west=1 AND urban =1')
 sqldf('SELECT COUNT(*) AS Central_And_West FROM crime_data WHERE central=1 
       AND west=1' )
@@ -426,9 +426,9 @@ We interpret this to mean that an attempt was made to mark the observations geog
 
 
 ```{r}
-crime_data_sql_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND 
+crime_data_sql_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND
                          (west!=1 AND urban!=1)')
-crime_data_sql_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND 
+crime_data_sql_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND
                       (central!=1 AND urban!=1)')
 ```
 
@@ -439,9 +439,9 @@ We can see that observations marked as central have a higher maximum crime rate 
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 boxplot(crime_data_sql_central$crmrte, main = "Crime: Central", ylim=c(0.0,0.1))
 boxplot(crime_data_west$crmrte, main = "Crime: West", ylim=c(0.0,0.1))
-hist(crime_data_sql_central$crmrte, main="Crime: Central", breaks=15, 
+hist(crime_data_sql_central$crmrte, main="Crime: Central", breaks=15,
      xlim=c(0.0, 0.1), ylim=c(0, 7))
-hist(crime_data_sql_west$crmrte, main="Crime: West", breaks=15, 
+hist(crime_data_sql_west$crmrte, main="Crime: West", breaks=15,
      xlim=c(0.0, 0.1), ylim=c(0, 7))
 ```
 
@@ -899,7 +899,7 @@ The important omitted variables that come to mind are:
 
 * Tourism:  As we outlined in the initial analysis, tourism is an omitted variable that can affect our analysis.  If a county depends on tourism, it may have mostly floating population.  This causes problems when modeling using density of resident population.
 
-* Geography:  Geography also tends to affect crime, in either aiding or hindering it: Western regions of North Carolina are hilly, whereas the eastern ones are plain. 
+* Geography:  Geography also tends to affect crime, in either aiding or hindering it: Western regions of North Carolina are hilly, whereas the eastern ones are plain.  Although both exhibit similar density, we see lower crime in the West.
 
 # 6. Conclusion
 
