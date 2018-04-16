@@ -13,6 +13,7 @@ library(stargazer)
 library(dplyr)
 library(lmtest)
 library(sandwich)
+library(sqldf)
 ```
 
 # 1. Introduction
@@ -208,7 +209,7 @@ crime_data %>% filter(crmrte > 0.07) %>% dplyr::select(density, central, urban, 
 
 We see that outlier high-crime areas are in central, urban North Carolina.
 
----
+-----
 
 ### Probability of arrest
 
@@ -222,7 +223,7 @@ There is fairly negative correlation of -0.37: as probability of arrests increas
 
 We will include $prbarr$ in our model.
 
----
+-----
 
 ### Probability of conviction
 
@@ -244,7 +245,7 @@ print(cor(crime_data$prbarr, crime_data$log_prbconv))
 
 We don't see much correlation and so, will include *log_prbconv* in our model.
 
----
+-----
 
 ### Police per capita
 Note: In our first pass, we found an influential outlier with very low crime rate, even at very high police per capita.  We removed it, as mentioned in the section on outliers.
@@ -260,7 +261,7 @@ We see fairly strong positive correlation of 0.6 with crime rate: high number of
 
 For our first model, we will *not* include this variable.
 
----
+-----
 
 ### Population density
 
@@ -275,7 +276,7 @@ The histogram of density shows quite a bit positive skew. The log transformation
 
 We see high positive correlation with crime rate.  It may be that high population density indicates greater scope for hiding or cooperation in order to commit crime, indicating causality.  We will surely consider this variable in our model.
 
----
+-----
 
 ### Tax revenue per capita
 
@@ -290,7 +291,7 @@ We also see considerable positive correlation with crime rate.  It may be that t
 
 We will *not* include this variable in a first model.
 
----
+-----
 
 ### Percent minority
 
@@ -304,7 +305,7 @@ There is a fair amount of positive correlation with crime rate (0.27).  It may b
 
 We will include this variable in our model.
 
----
+-----
 ### West, Central, Urban
 
 ```{r}
@@ -360,7 +361,7 @@ hist(crime_data_west$crmrte, main="Crime rate in west", breaks=15)
 
 
 
----
+-----
 ### Wage distribution
 
 Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
@@ -395,7 +396,7 @@ A general remark is in order for the positive correlation of crime across the wa
 
 We will *not* include wages in a first model.  We will use $wfed$ as a proxy variable for all wages, for a second model we will propose.
 
----
+-----
 
 ### Percent of young males
 
@@ -409,7 +410,7 @@ A high percentage of young males can indicate higher aggressiveness and risk, ca
 
 We will include this variable in our model.
 
----
+-----
 
 ### Urban population
 
@@ -435,7 +436,7 @@ This is quite high, so we run a risk of multicollinearity.
 
 Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
 
----
+-----
 
 ### Other variables ignored
 
@@ -547,10 +548,15 @@ $$\log{(crmrte)} = -3.723 -1.68 \cdot prbarr -0.311 \cdot \log{(prbconv)} + 0.37
 From the above regression equation, we can infer the following.  All statements have *ceteris paribus* assumptions:
 
 * If we hold all other variables constant, we have a "base crime rate" of $e^{-3.723} = 0.024$.
-* For a unit increase in probability of arrest, crime rate goes down by approximately $|e^{-1.68} - 1| = 0.81$, or 81%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
-* For a 1% increase in probability of conviction, crime rate decreases by about 0.3%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
-* For a 1% increase in density, crime rate increases by about 0.38%.  As we put more people closer, crime is easier to commit and harder to spot.
-* For a 1% increase in minorities, crime rate increases by about $|e^{0.000416 - 1| = 0.04%$.  This is a small effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
+
+* For a unit increase in probability of arrest, crime rate goes down by approximately $|e^{-1.68} - 1| = 0.81$, or 81%. This is a large effect. It shows that law enforcement is a very good deterrent to crime.
+
+* For a 1% increase in probability of conviction, crime rate decreases by about 0.3%. This is not a lot. It may be because most of the effect is already absorbed by $prbarr$.
+
+* For a 1% increase in density, crime rate increases by about 0.38%. As we put more people closer, crime is easier to commit and harder to spot.
+
+* For a 1% increase in minorities, crime rate increases by about $|e^{0.000416 - 1}| = 0.04\%$. This is a small effect. Compared to the animosity the majority may have over minorities, the effect is very little.
+
 
 Next, let us include some more variables, as model2.  In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
 
