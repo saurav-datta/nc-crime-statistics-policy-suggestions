@@ -11,6 +11,7 @@ library(car)
 library(corrplot)
 library(stargazer)
 library(dplyr)
+library(lmtest)
 ```
 
 # 1. Introduction
@@ -64,6 +65,7 @@ We found the following observations to have outsized influence as measured by Co
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+#layout(matrix(c(1,2,3,4), 1, 4), heights = lcm(6))
 m = lm(log(crime_data$crmrte) ~ crime_data$wser)
 plot(m, which=5, caption=NA)
 m = lm(log(crime_data$crmrte) ~ log(crime_data$density))
@@ -515,13 +517,21 @@ plot(model2, which = 1)
 #### CLM 5.0 - Homoskedasticity
 When we examined the residuals versus fitted values plot, it was apparent that the variance of errors to the right of the plot is smaller than the variance of errors in the middle of the plot. This suggested heteroskedasticity, so we examined
 the scale-location plot. The spline curve on the scale-location plot is curved rather than flat, indicating heteroskedasticity.
-Despite this clear violation of CLM, we are able to proceed with our OLS model by using heteroskedasticity-robust
+Despite this violation of CLM, we are able to proceed with our OLS model by using heteroskedasticity-robust
 standard errors.
 ```{r}
 plot(model2, which = 3)
+bptest(model2)
 ```
+We also conducted the studentized Breusch-Pagan test where the null hypothesis states that the model supports homoskedasticity. The p-value obtained indicates marginal statistical significance.
 
 #### CLM 6.0 - Normality of error terms
+Looking at the histogram of the residual term indicates a more or less normal distribution. This can further be confimed by the Shapiro test. The null hypothesis of this test is that residuals have a normal distribution. The p-value indicates we do not reject this null hypothesis.
+
+```{r}
+hist(model2$residuals, breaks=50)
+shapiro.test(model2$residuals)
+```
 
 # 6. Omitted variables
 
