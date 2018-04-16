@@ -63,7 +63,7 @@ duplicated(crime_data)[duplicated(crime_data)==TRUE]
 crime_data = distinct(crime_data)
 ```
 
-### Influential outliers
+## Influential outliers
 
 We now present some influential outliers we found during our analysis that affect our regression fit.
 
@@ -71,7 +71,7 @@ In general, the outliers are counties that are heavy on tourism, but with low re
 
 $wser$, observation #84: extremely high service wages. This observation is so skewed that it pulls the regression line of fit.  The county (FIPS: 185) corresponds to Warren; there is nothing in Wikipedia to suggest that this county can command such high service wages.
 
-We think this is a measurement error and we will remove it.*
+We think this is a measurement error and we will remove it.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -316,6 +316,7 @@ There is a fair amount of positive correlation with crime rate (0.27).  It may b
 We will include this variable in our model.
 
 -----
+
 ### West, Central, Urban
 
 ```{r}
@@ -333,6 +334,7 @@ sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central !=1 AND west!=
 
 
 ```
+
 We observe the below:
 
 >- 33 observations  have been marked as central with no overlap on west or urban
@@ -354,6 +356,7 @@ crime_data_west=sqldf('SELECT * FROM crime_data WHERE west =1 AND (central!=1 OR
 
 
 We can see that observations marked as central have a higher maximum crime rate compare to those marked as west.
+
 ```{r}
 summary(crime_data_central$crmrte)
 summary(crime_data_west$crmrte)
@@ -361,6 +364,7 @@ summary(crime_data_west$crmrte)
 ```
 
 The west region has more occurences of lower crime rate than the central region. There is a significant overlap between the observations marked as west/central and those marked as urban. Also, there are no regions marked as rural. So, we are not analyzing the observations marked as urban.
+
 ```{r}
 par(mfrow=c(2,2), mai=c(0.35,0.35,0.35,0.35))
 
@@ -372,6 +376,7 @@ hist(crime_data_west$crmrte, main="Crime rate in west", breaks=15)
 
 
 -----
+
 ### Wage distribution
 
 Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
@@ -551,33 +556,102 @@ The model gets a very low p-value based on its F-statistic, therefore we can rej
 
 The model shows that $pctymle$ is not statistically significant in our model.  We will proceed to remove it.  On the other hand, all our other independent variables are highly statistically significant.
 
+```{r}
+model1 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80, data=crime_data)
+summary(model1)
+```
+
 The model becomes:
-$$ \log{(crmrte)} = -2.744 -0.0138 \cdot prbarr -0.236 \cdot \log{(prbconv)} + 0.420 \cdot \log{(density)} + 0.000150 \cdot pctmin80 $$
+$$ \log{(crmrte)} = -2.542 -0.0147 \cdot prbarr -0.253 \cdot \log{(prbconv)} + 0.422 \cdot \log{(density)} + 0.000151 \cdot pctmin80 $$
 
 **Practical significance:**
 
 From the above regression equation, we can infer the following.  All statements have *ceteris paribus* assumptions:
 
-* If we hold all other variables constant, we have a "base crime rate" of $e^{-2.744} = 0.0643$.
+* If we hold all other variables constant, we have a "base crime rate" of $e^{-2.542} = 0.079$.
 
-* For a unit increase in "probability" of arrest, crime rate goes down by approximately $|e^{-0.0138} - 1| = 0.0138$, or 1.37%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
+* For a unit increase in "probability" of arrest, crime rate goes down by approximately $|e^{-0.0147} - 1| = 0.0146$, or 1.46%.  This is a large effect.  It shows that law enforcement is a very good deterrent to crime.
 
-* For a 1% increase in "probability" of conviction, crime rate decreases by about 0.3%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
+* For a 1% increase in "probability" of conviction, crime rate decreases by about 0.25%.  This is not a lot.  It may be because most of the effect is already absorbed by $prbarr$.
 
-* For a 1% increase in density, crime rate increases by about 0.4%.  This is a large effect.  As we put more people closer, crime is easier to commit and harder to spot.
+* For a 1% increase in density, crime rate increases by about 0.42%.  This is a large effect.  As we put more people closer, crime is easier to commit and harder to spot.
 
-* For a 1% increase in minorities, crime rate increases by about $|e^{0.000150 - 1}| = 0.015\%$.  This is a minuscule effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
+* For a 1% increase in minorities, crime rate increases by about $|e^{0.000151 - 1}| = 0.015\%$.  This is a minuscule effect.  Compared to the animosity the majority may have over minorities, the effect is very little.
+
+## CLM on Model 1
 
 Let us verify if the linear model assumptions hold.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-plot(model1)
+plot(model1, which=c(1,2,3))
+hist(model1$residuals, main="Residuals")
+```
+
+#### CLM 1.0 - Linear in parameters
+
+Our model is represented as:
+
+$$ \log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \beta_4\ {pctmin80} + u $$
+
+Any population distribution could be represented as a linear model plus some error (error might be poorly behaved). We chose the above model such that the dependent variable is a linear function of the explanatory variables. Therefore the CLM.1 assumption is met for our all of our models we created
+
+#### CLM 2.0 - Random Sampling
+
+For this assumption, the data needs to be a random sample drawn from the population.
+
+We first note that the U.S. state of North Carolina is divided in 100 counties (information from Wikipedia). Our dataset contained information from 90 different counties. Though we didn't use data from all counties, there was no indication of non-random sampling during our analysis. We therefore assume that the counties sampled are indeed random and thus our assumption is met for all the models we created
+
+We do note that variables such as crimerate are prone to clustering effects but we can get away with bootstrapping measurements
+
+#### CLM 3.0 - No Perfect Multicollinearity
+
+From our EDA it was apparent that none of our variables had constant values. In addition, inspection of the correlation
+plot we generated indicates there are no perfectly correlated variable pairs.
+
+```{r}
+vif(model1)
+```
+
+The variance inflation factor does not provide any evidence of multicollinearity as well. We therefore assume CLM 3.0 condition is satisfied
+
+#### CLM 4.0 - Zero Conditional Mean
+
+By examining the residuals verus fitted values plot for model, we conclude that the assumption of zero conditional
+mean is met. The red spline curve does not deviate much from zero and appears fairly flat.
+
+```{r}
+plot(model1, which = 1)
+```
+
+#### CLM 5.0 - Homoskedasticity
+
+When we examined the residuals versus fitted values plot, it was apparent that the variance of errors in the middle of the plot is higher than the variance of errors in the edges of the plot. This suggested heteroskedasticity, so we examined
+the scale-location plot. The spline curve on the scale-location plot is curved rather than flat, indicating heteroskedasticity.
+Despite this violation of CLM, we are able to proceed with our OLS model by using heteroskedasticity-robust standard errors.
+
+```{r}
+plot(model1, which = 3)
+bptest(model1)
+```
+
+We also conducted the studentized Breusch-Pagan test where the null hypothesis states that the model supports homoskedasticity. The p-value obtained indicates statistical significance that rejects the null hypothesis.
+
+#### CLM 6.0 - Normality of error terms
+
+Looking at the histogram of the residual term indicates a more or less normal distribution. This can further be confimed by the Shapiro test. The null hypothesis of this test is that residuals have a normal distribution. The p-value indicates we do not reject this null hypothesis.
+
+```{r}
+hist(model1$residuals)
+shapiro.test(model1$residuals)
 ```
 
 ## Model 2
 
-Next, let us include some more variables, as model2.  In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
+Next, let us include some more variables, as model2.
+
+In this model we also include three variables that show positive correlation with crime rate, albeit not causal.  We think they are all the result of wealthy, urban demographics: high police per capita, high tax revenue and high federal wages.  It is an omitted variable.
 
 We do not include outcome variables that absorb causal effect (by having negative correlation).
 
@@ -587,11 +661,32 @@ model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             + log_polpc + log_taxpc + wfed,
             data=crime_data)
 summary(model2)
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-plot(model2)
 ```
 
 The fit improves to 0.80 (adjusted $R^2$).  This is because some of the newly added variables are more normal in distribution (=less skew).
+
+**Statistical significance:**
+
+We continue to see $pctymle$ as not significant.  In addition, $log_taxpc$ and $wfed$ are also not statistically significant.  $polpc$ is significant at p=0.05.
+
+Therefore, we will remove the insignificant variables.  The new model becomes:
+
+```{r}
+model2 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80 + log_polpc,
+            data=crime_data)
+summary(model2)
+```
+
+**Practical significance:**
+
+```{r}
+par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
+plot(model2, which=c(1,2,3))
+hist(model2$residuals, main="Residuals")
+```
+
+### Model 3
 
 We will now build a third model that includes almost all the variables, for the sake of completeness and comparison.  We only exclude wages because their distribution is highly alike.
 
@@ -601,21 +696,19 @@ model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
             + log_polpc + log_taxpc
             + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
-summary(model2)
+summary(model3)
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
 plot(model3)
 ```
 
 This tops fit at about 0.824 (adjusted $R^2$).  However, it is worth noting that the benefit is not much: all those extra variables improved the fit by less than 2%.
 
-We see that only prbarr, log_density, pctmin80, log_polpc have a significant effect in model3.
+In addition to what we had in model2, only $avgsen$, $wfir$ and $wfed$ are seen to be practically significant.  We can ignore $prbpris$, $mix$, $taxpc$, and $pctymle$.
 
 
 ```{r}
 coeftest(model3, vcov = vcovHC)
-
 ```
-
 
 
 We will now build a variation of model3 that includes  all the wage variable in addition to the model3 variables.
@@ -663,8 +756,6 @@ f_check_null("wser", "crime_data")
 f_check_null("wmfg", "crime_data")
 f_check_null("wfed", "crime_data")
 f_check_null("wsta", "crime_data")
-
-
 ```
 
 We also check if the wage types are all numeric
@@ -679,8 +770,6 @@ typeof(crime_data$wser)
 typeof(crime_data$wmfg)
 typeof(crime_data$wfed)
 typeof(crime_data$wsta)
-
-
 ```
 
 
@@ -727,62 +816,9 @@ AIC(model1, model2, model3)
 
 The AIC scores also reflect the fit: the last model has the best (least) score, whereas the first model has the worst.
 
-## CLM on Model 2
-Here we will pick our second model and do a thorough analysis of six assumptions of the linear model namely:
-
-#### CLM 1.0 - Linear in parameters
-Our model is represented as:
-
-$$\log{(crmrte)} = \beta_0 + \beta_1\ prbarr + \beta_2\ \log{(prbconv)} + \beta_3\ \log{(density)} + \\
-                  \beta_4\ {pctmin80} + \beta_6\ {pctymle} + \beta_7\ \log{(polpc)} + \beta_8\ \log{(taxpc)} 
-                  + \beta_9\ {(wfed)} + u $$
-
-Any population distribution could be represented as a linear model plus some error (error might be poorly behaved). We chose the above model such that the dependent variable is a linear function of the explanatory variables. Therefore the CLM.1 assumption is met for our all of our models we created
-
-#### CLM 2.0 - Random Sampling
-For this assumption, the data needs to be a random sample drawn from the population.
-
-We first note that the U.S. state of North Carolina is divided in 100 counties (information from Wikipedia). Our dataset contained information from 90 different counties. Though we didn't use data from all counties, there was no indication of non-random sampling during our analysis. We therefore assume that the counties sampled are indeed random and thus our assumption is met for all the models we created
-
-We do note that variables such as crimerate are prone to clustering effects but we can get away with bootstrapping measurements
-
-#### CLM 3.0 - MultiCollinearity
-From our EDA it was apparent that none of our variables had constant values. In addition, inspection of the correlation
-plot we generated indicates there are no perfectly correlated variable pairs.
-```{r}
-vif(model2)
-```
-The variance inflation factor does not provide any evidence of multicollinearity as well. We therefore assume CLM 3.0 condition is satisfied
-
-#### CLM 4.0 - Zero Conditional Mean
-By examining the residuals verus fitted values plot for model, we conclude that the assumption of zero conditional
-mean is met. The red spline curve does not deviate much from zero and appears fairly flat
-```{r}
-plot(model2, which = 1)
-```
-
-#### CLM 5.0 - Homoskedasticity
-When we examined the residuals versus fitted values plot, it was apparent that the variance of errors to the right of the plot is smaller than the variance of errors in the middle of the plot. This suggested heteroskedasticity, so we examined
-the scale-location plot. The spline curve on the scale-location plot is curved rather than flat, indicating heteroskedasticity.
-Despite this violation of CLM, we are able to proceed with our OLS model by using heteroskedasticity-robust
-standard errors.
-```{r}
-plot(model2, which = 3)
-bptest(model2)
-```
-We also conducted the studentized Breusch-Pagan test where the null hypothesis states that the model supports homoskedasticity. The p-value obtained indicates statistical significance that rejects the null hypothesis
-
-#### CLM 6.0 - Normality of error terms
-Looking at the histogram of the residual term indicates a more or less normal distribution. This can further be confimed by the Shapiro test. The null hypothesis of this test is that residuals have a normal distribution. The p-value indicates we do not reject this null hypothesis.
-
-```{r}
-hist(model2$residuals, breaks=50)
-shapiro.test(model2$residuals)
-```
-
 #### CLM observations for other models (1 & 3)
 For both our other models (1 and 3), we observed that most of the CLM assumptions were satisfied. They both supported: linear in parameters, random sampling, multicollinearity and had normal residuals. 
-The one difference was that these other models actually satisfied Homoskedasticity as well. We believe that by adding all the variables, as in model3, we are likely canceling out variances in errors 
+The one difference was that these other models actually satisfied Homoskedasticity as well. We believe that by adding all the variables, as in model3, we are likely canceling out variances in errors.
 
 ### Model 4
 
