@@ -745,8 +745,10 @@ f_check_null <- function(in_field_name, in_db_name ){
 ```
 
 
-Before combining the wage figures, we have to check if any of them are NA or
-```{r}
+Before combining the wage figures, we have to check if any of them are NA.
+
+```{r eval=FALSE}
+# (Evaluate manually to verify)
 f_check_null("wcon", "crime_data")
 f_check_null("wloc", "crime_data")
 f_check_null("wtrd", "crime_data")
@@ -758,9 +760,10 @@ f_check_null("wfed", "crime_data")
 f_check_null("wsta", "crime_data")
 ```
 
-We also check if the wage types are all numeric
+We also check if the wage types are all numeric.
 
-```{r}
+```{r eval=FALSE}
+# (Evaluate manually to verify)
 typeof(crime_data$wcon)
 typeof(crime_data$wloc)
 typeof(crime_data$wtrd)
