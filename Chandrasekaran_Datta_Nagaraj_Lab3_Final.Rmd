@@ -16,7 +16,7 @@ library(sandwich)
 library(sqldf)
 ```
 
-# 1. Introduction
+# 0. Introduction
 
 Our team has been hired to provide research for a political campaign. The campaign has obtained a dataset of crime statistics for a selection of counties in North Carolina. Our task is to examine the data to help the campaign understand the determinants of crime and to generate policy suggestions that are applicable to local government.
 
@@ -24,7 +24,16 @@ The data provided consists of 25 variables and 97 different observations collect
 
 Our primary analysis of data will include ordinary least squares regressions to make causal estimates and we will clearly explain how omitted variables may affect our conclusions. We begin our research by conducting exploratory analysis of the dataset to gain a better understanding of the variables.
 
-# 2. Data input and cleanup
+# Agenda
+
+1. Data input and cleanup
+2. Exploratory Data Analysis
+3. Model development and analysis
+4. Conclusion
+
+-----
+
+# 1. Data input and cleanup
 
 Our first step is to detect anomalies such as missing and duplicate values and to clean up the dataset before deeper dive into regression analysis.
 
@@ -65,11 +74,9 @@ crime_data = distinct(crime_data)
 
 ## Influential outliers
 
-We now present some influential outliers we found during our analysis that affect our regression fit.
+We now present some influential outliers we found during our analysis that affect our regression fit.  We measure influence via Cook's distance (>1).
 
-In general, the outliers are counties that are heavy on tourism, but with low resident population.  This causes high crime rates and police presence even in the presence of low density, because density probably counts only residents.
-
-$wser$, observation #84: extremely high service wages. This observation is so skewed that it pulls the regression line of fit.  The county (FIPS: 185) corresponds to Warren; there is nothing in Wikipedia to suggest that this county can command such high service wages.
+**Observation #84:** extremely high service wages. This observation is so skewed that it pulls the regression line of fit.  The county corresponds to Warren; there is nothing in Wikipedia to suggest that this county can command such high service wages.
 
 We think this is a measurement error and we will remove it.
 
@@ -97,7 +104,9 @@ abline(m)
 crime_data <- crime_data_tmp
 ```
 
-$polpc$, observation #51: highly influential observation, which has very low crime rate, yet very high police per capita.  This observation corresponds to Madison County in the mountains of western NC.  This county gets a lot of tourists, so it may have more police than otherwise.  This merits further investigation.  We will remove it to improve our fit.
+We saw some outliers with a distinct pattern: they come from counties that are heavy on tourism, but with low resident population.  This causes high crime rates and police presence even in the presence of low density, because density probably counts only residents.  We were enabled by Zach's report, where he states that the county numbers correspond to FIPS codes.  We looked up county information on NCPedia.  We remove these outliers to improve our model fit.
+
+**Observation #51:** highly influential observation, which has very low crime rate, yet very high police per capita.  This observation corresponds to Madison County in the Smoky mountains of western NC.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -122,7 +131,7 @@ abline(m)
 crime_data <- crime_data_tmp
 ```
 
-$density$, observation #78: extremely low density.  Looking at FIPS numbering for the county (173), we see that this corresponds to Swain County, western North Carolina.  This county is almost entirely forested and an influential outlier.  It also derives revenue from tourism.  We can remove this county to improve our fit.
+**Observation #78:** extremely low density.  This corresponds to Swain County, western North Carolina.  This county has almost all its land area in a national park and is an influential outlier.  It also derives revenue from tourism.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -149,18 +158,17 @@ crime_data <- crime_data_tmp
 crime_data <- crime_data %>% slice(-25)
 ```
 
-Finally, observation #25 causes outliers in the final model fit due to a lot of influence. It shows very high
-crime rate and very high police per capita, while also showing very low density, very low minority and highest tax per capita.
+**Observation #25** causes outliers in the final model fit due to a lot of influence. It shows very high crime rate and very high police per capita, while also showing very low density, very low minority and highest tax per capita.
 
-The observation corresponds to Dare County, which consists mostly of a sliver of an island.  NCPedia lists seasonal tourism as the primary industry of the county.  This can explain why there is high crime and police presence, even though there is low population density and high tax revenue.
+The observation corresponds to Dare County on the eastern seaboard, consisting mostly of a sliver of an island.  NCPedia lists seasonal tourism as the primary industry of the county.
 
-This observation has a high Cook's distance (>1).  It also is an unusual, outlier county; we removed it to improve our model fit.
+-----
 
-# 3. Exploratory Data Analysis
+# 2. Exploratory Data Analysis
 
-We will now try to get a sense of each variable in the dataset.  First, a utility function to describe a variable.
+We will now try to get a sense of each variable in the dataset.  We define a utility function to describe a variable, visible in the original R markdown, but omitted here to leave more space for analysis.
 
-```{r util_fns}
+```{r util_fns, echo=FALSE}
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   y = log(crime_data$crmrte)
@@ -193,6 +201,7 @@ f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
 }
 ```
 
+
 ## Single variable analysis
 
 ### Crime rate
@@ -213,12 +222,6 @@ Looking at the histogram, the distribution is positively skewed to the left. We 
 
 Crime rate is mostly low, but there are some observations that show high crime rate (positive outliers).  This causes skew.
 
-```{r}
-crime_data %>% filter(crmrte > 0.07) %>% dplyr::select(density, central, urban, prbarr, prbconv)
-```
-
-We see that outlier high-crime areas are in central, urban North Carolina.
-
 -----
 
 ### Probability of arrest
@@ -231,7 +234,7 @@ The plot looks fairly normal; there is only one outlier that corresponds to the 
 
 There is fairly negative correlation of -0.37: as probability of arrests increases, crime rate goes down.  It may be that arrests are a deterrent, indicating causality.
 
-We will include $prbarr$ in our model.
+*We will include $prbarr$ as an independent variable in our model.*
 
 -----
 
