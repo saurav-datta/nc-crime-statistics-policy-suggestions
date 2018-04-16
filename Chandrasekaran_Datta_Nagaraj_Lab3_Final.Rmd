@@ -1,8 +1,11 @@
 ---
-title: "Lab3 Final, w203: Statistics for Data Science"
+title: 'Lab3 Final, w203: Statistics for Data Science'
 author: "Avinash Chandrasekaran, Deepak Nagaraj, Saurav Datta"
 date: "April 13, 2018"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -11,6 +14,7 @@ library(car)
 library(corrplot)
 library(stargazer)
 library(dplyr)
+library(sqldf)
 ```
 
 # 1. Introduction
@@ -84,6 +88,8 @@ The observations are questionable and affect our model because of their high inf
 ```{r}
 crime_data <- crime_data %>% slice(-c(6, 25, 51, 79, 84, 89))
 ```
+
+
 
 # 3. Exploratory Data Analysis
 
@@ -245,7 +251,62 @@ There is a fair amount of positive correlation with crime rate (0.27).  It may b
 We will include this variable in our model.
 
 ---
+### West, Central, Urban
 
+```{r}
+sqldf('SELECT COUNT(*) AS Only_Central FROM crime_data WHERE central =1 AND (west!=1 OR urban !=1)')
+sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west =1 AND (central!=1 OR urban !=1)') 
+sqldf('SELECT COUNT(*) AS Only_Urban FROM crime_data WHERE urban =1 AND (central!=1 and west !=1)')
+
+sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central =1 and west=1 and urban =1')
+
+sqldf('SELECT COUNT(*) AS Central_And_West FROM crime_data WHERE central =1 and west=1' )
+sqldf('SELECT COUNT(*) AS West_And_Urban FROM crime_data WHERE west =1 and urban=1' )
+sqldf('SELECT COUNT(*) AS Central_And_Urban FROM crime_data WHERE central =1 and urban=1' )
+
+sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central !=1 AND west!=1 AND urban!=1' )
+
+
+```
+We observe the below:
+
+>- 33 observations  have been marked as central with no overlap on west or urban
+>- 19 observations  have been marked as  west with no overlap on central or urban
+>- 2 observations  have been marked as  urban with no overlap on central or west
+>- No observations is marked as  urban and  central and west
+>- 1 observation  has been marked as both central and west.
+>- 1 observation  has been marked as both west and urban
+>- 5 observations have been marked as both central and urban
+>- 31 observations have not been marked as either west nor central nor urban
+
+We interpret this to mean that an attempt was made to mark the observations geographically as well as by urban (or rural). However, the assignment is not complete as we we can see. Some regions have been been given any label as to their region; these may belong to a different geographical region or rural.
+
+
+```{r}
+crime_data_central=sqldf('SELECT * FROM crime_data WHERE central =1 AND (west!=1 OR urban !=1)')
+crime_data_west=sqldf('SELECT * FROM crime_data WHERE west =1 AND (central!=1 OR urban !=1)')
+```
+
+
+We can see that observations marked as central have a higher maximum crime rate compare to those marked as west.
+```{r}
+summary(crime_data_central$crmrte)
+summary(crime_data_west$crmrte)
+
+```
+
+The west region has more occurences of lower crime rate than the central region. There is a significant overlap between the observations marked as west/central and those marked as urban. Also, there are no regions marked as rural. So, we are not analyzing the observations marked as urban.
+```{r}
+par(mfrow=c(2,2), mai=c(0.35,0.35,0.35,0.35))
+
+hist(crime_data_central$crmrte, main="Crime rate in central", breaks=15)
+hist(crime_data_west$crmrte, main="Crime rate in west", breaks=15)
+
+```
+
+
+
+---
 ### Wage distribution
 
 Note: In our first pass, we found an influential outlier in services wages and removed it, as mentioned in the section on outliers.
@@ -320,6 +381,8 @@ This is quite high, so we run a risk of multicollinearity.
 Therefore, and since we have already selected density (with an additional advantage of more number of observations), we will *not* include this variable in our model.
 
 ---
+
+
 
 ### Other variables ignored
 
@@ -431,18 +494,132 @@ The fit improves to 0.824 (adjusted $R^2$).  This is because some of the newly a
 
 We will now build a third model that includes almost all the variables, for the sake of completeness and comparison.  We only exclude wages because their distribution is highly alike.
 
+
 ```{r}
 model3 = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
             + log_polpc + log_taxpc
             + prbpris + avgsen + wfir + wfed + mix,
             data=crime_data)
-summary(model2)$adj.r.squared
+#correction#summary(model2)$adj.r.squared
+summary(model3)$adj.r.squared
 par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
 plot(model3, which=c(1,2,5))
+
 ```
 
 This tops fit at about 0.841 (adjusted $R^2$).  However, it is worth noting that the benefit is not much: all those extra variables improved the fit by less than 2%.
+
+We see that only prbarr, log_density, pctmin80, log_polpc have a significant effect in model3. 
+
+```{r}
+coeftest(model3, vcov = vcovHC)
+
+```
+
+We will now build a variation of model3 that includes  all the wage variable in addition to the model3 variables.  
+
+```{r}
+model3b = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80 + pctymle
+            + log_polpc + log_taxpc
+            + prbpris + avgsen 
+            + wcon + wloc + wtrd +wtuc + wfir +wser + wmfg + wfed + wsta
+              +mix,
+            data=crime_data)
+summary(model3b)$adj.r.squared
+par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
+plot(model3b, which=c(1,2,5))
+
+```
+
+The coeftest confirms that none of the wage variables have a significant effect.
+```{r}
+coeftest(model3b, vcov = vcovHC)
+
+```
+
+We will investigate if the wage figures together make a difference.
+
+```{r Function to check Null or NA}
+f_check_null <- function(in_field_name, in_db_name ){
+  sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM %s WHERE (%s IS \"NA\" or %s IS NULL or %s = ' ' or %s = '')", in_db_name, in_field_name,in_field_name,in_field_name,in_field_name)
+  sqldf(sql)
+  
+}
+
+```
+
+
+Before combining the wage figures, we have to check if any of them are NA or 
+```{r}
+f_check_null("wcon", "crime_data")
+f_check_null("wloc", "crime_data")
+f_check_null("wtrd", "crime_data")
+f_check_null("wtuc", "crime_data")
+f_check_null("wfir", "crime_data")
+f_check_null("wser", "crime_data")
+f_check_null("wmfg", "crime_data")
+f_check_null("wfed", "crime_data")
+f_check_null("wsta", "crime_data")
+
+
+```
+
+We also check if the wage types are all numeric
+
+```{r}
+typeof(crime_data$wcon)
+typeof(crime_data$wloc)
+typeof(crime_data$wtrd)
+typeof(crime_data$wtuc)
+typeof(crime_data$wfir)
+typeof(crime_data$wser)
+typeof(crime_data$wmfg)
+typeof(crime_data$wfed)
+typeof(crime_data$wsta)
+
+
+```
+
+
+```{r}
+crime_tmp = sqldf("SELECT *, wcon+wloc+wtrd+wtuc+wfir+wser+wmfg+wfed+wsta AS 'sum_wages'
+                FROM crime_data" )
+
+sqldf('SELECT sum_wages from crime_tmp LIMIT 5')
+```
+
+```{r}
+crime_data = crime_tmp
+```
+
+
+```{r}
+model3c = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
+              pctmin80 + pctymle
+            + log_polpc + log_taxpc
+            + prbpris + avgsen 
+            + sum_wages
+              +mix,
+            data=crime_data)
+summary(model3c)$adj.r.squared
+
+```
+
+
+```{r}
+coeftest(model3c, vcov = vcovHC)
+
+linearHypothesis(model3c, c("sum_wages = 0"), vcov = vcovHC)
+
+
+#waldtest(model3b, model3c, vcov = vcovHC)
+
+```
+
+We can see from the coeftest that the sum of wages has no significant effect on the model. A similar conclusion can be drawn from the linearHypothesis test.
+
 
 ```{r}
 AIC(model1, model2, model3)
@@ -462,13 +639,22 @@ crime_other_region = crime_data %>% filter(central==0 & west==0)
 formula = log_crmrte ~ log_density + pctymle + pctmin80 +
   prbarr + log_prbconv + log_taxpc
 
+paste("  ")
+paste("Model for west region")
 logcrmrte.west.lm4a = lm(formula, data=crime_west)
+logcrmrte.west.lm4a$coefficients
 summary(logcrmrte.west.lm4a)$r.squared
 
+paste("  ")
+paste("Model for central region")
 logcrmrte.central.lm4b = lm(formula, data=crime_central)
+logcrmrte.central.lm4b$coefficients
 summary(logcrmrte.central.lm4b)$r.squared
 
+paste("  ")
+paste("Model for other regions")
 logcrmrte.other_rgn.lm4c = lm(formula, data=crime_other_region)
+logcrmrte.other_rgn.lm4c$coefficients
 summary(logcrmrte.other_rgn.lm4c)$r.squared
 ```
 
