@@ -746,8 +746,13 @@ We finally perform a similar experiment to check if sum of all wages has any eff
 ```{r}
 crime_tmp = sqldf("SELECT *, wcon+wloc+wtrd+wtuc+wfir+wser+wmfg+wfed+wsta AS 'sum_wages'
                 FROM crime_data" )
+```
 
+```{r include=FALSE}
 sqldf('SELECT sum_wages from crime_tmp LIMIT 5')
+```
+
+```{r}
 crime_data_tmp = crime_tmp
 model3c = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
