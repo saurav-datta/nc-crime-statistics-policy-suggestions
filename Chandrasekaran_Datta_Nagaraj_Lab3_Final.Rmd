@@ -887,7 +887,7 @@ The important omitted variables that come to mind are:
 
 * Total number of neighbourhood crime watch groups in the county: The total number of neighbourhood crime watch groups in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive
 
-* Family cohesiveness such as divorce rate, domestic violence:  This maybe difficult to measure.The family cohesiveness measure may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+* Family cohesiveness such as divorce rate, domestic violence:  This maybe difficult to measure. The family cohesiveness measure may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
 
 * Any extreme climate change when the crime occured. This can be a significant change compared to the expected climate in that month. Higher temperatures lead to high tempers and may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
 
