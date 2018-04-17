@@ -30,7 +30,8 @@ Our primary analysis of data will include ordinary least squares regressions to 
 2. Exploratory Data Analysis
 3. Correlation Analysis
 4. Model development and analysis
-5. Conclusion
+5. Omitted variables
+6. Conclusion
 
 -----
 
@@ -169,7 +170,7 @@ The observation corresponds to Dare County on the eastern seaboard, consisting m
 
 We will now try to get a sense of each variable in the dataset.  We define a utility function to describe a variable, visible in the original R markdown, but omitted here to leave more space for analysis.
 
-```{r util_fns, echo=FALSE}
+```{r util_fns}
 # Utility function to describe a column variable
 f_describe_col = function (col, do_log=FALSE, plot_model=FALSE, do_sqrt=FALSE) {
   y = log(crime_data$crmrte)
@@ -439,6 +440,8 @@ The following variables show low to nonexistent correlation with crime rate.  We
 * Offense mix ($R = 0.0136$)
 * Average sentence duration ($R = 0.0438$)
 
+-----
+
 # 3. Correlation Analysis
 
 Let us check for correlations across predictor pairs.
@@ -466,6 +469,8 @@ The following correlations are worth a remark:
 - Police per capita correlates highly with density (0.56) and tax revenue (0.44), perhaps indicating federal laws on police counts.
 
 - Probability of arrest correlates negatively (-0.38) with density, indicating that criminals get away with crime in populous areas.  It also correlates negatively (-0.30) with probability of conviction, indicating higher chance of false arrests when a large number of arrests are made.
+
+-----
 
 # 4. Model development and analysis
 
@@ -506,8 +511,9 @@ Here is a summary table of variables we will use in our models.
 | mix      | log        |         |         | Y       | No corr. found |
 | pctymle  |            | Y       | Y       | Y       | Causal, weak cor  |
 
+-----
 
-## Model 1
+### Model 1
 
 For the first model, here are the variables we will consider:
 
@@ -629,7 +635,9 @@ However, because we have a large sample, we again make asymptotic argument.  The
 
 Other possibilities include transformations of dependent and/or independent variables, when they exhibit skewed distribution.
 
-## Model 2
+-----
+
+### Model 2
 
 Next, let us include some more variables, as model2.
 
@@ -654,7 +662,7 @@ The fit improves to 0.80 (adjusted $R^2$).  This is because some of the newly ad
 coeftest(model2, vcov = vcovHC)
 ```
 
-We now see that $pctymle$ is not significant.  In addition, $log_taxpc$, $polpc$ and $wfed$ are also not statistically significant.  It seems as if none of the variables we added matter, statistically speaking.
+We now see that $pctymle$ is not significant.  In addition, $log_taxpc$, $polpc$ and $wfed$ are also not statistically significant.  It seems as if none of the variables we added matter, statistically speaking.  They could indeed be zero (we cannot reject $H_0$).
 
 Let us take a look at its plots and check if we violate any of the CLM assumptions:
 
@@ -665,6 +673,8 @@ hist(model2$residuals, main="Residuals")
 ```
 
 The model plots look very similar to the ones in Model 1.
+
+-----
 
 ### Model 3
 
@@ -686,6 +696,8 @@ coeftest(model3, vcov = vcovHC)
 ```
 
 In addition to what we saw in model2, only $avgsen$, $wfir$ and $wfed$ are seen to be practically significant.  We can ignore $prbpris$, $mix$, $taxpc$, and $pctymle$.
+
+From this model, it seems longer sentences correlate negatively with crime rate.  Wages in certain industries are correlated with crime rate, possibly due to an omitted variable.
 
 ```{r}
 par(mfrow=c(2,2), mai=c(0.35,0.35,0.35,0.35))
@@ -714,7 +726,7 @@ coeftest(model3b, vcov = vcovHC)
 
 The coeftest confirms that none of the wage variables individually have any significant effect. 
 
-```{r include=FALSE}
+```{r}
 f_check_null <- function(in_field_name, in_db_name ) {
   sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM %s WHERE (%s IS \"NA\" or %s IS NULL or %s = ' ' or %s = '')", in_db_name, in_field_name,in_field_name,in_field_name,in_field_name)
   sqldf(sql)
@@ -822,6 +834,8 @@ stargazer(model1, model2, model3, type="latex", digits=3,
           header=FALSE)
 ```
 
+-----
+
 # 5. Omitted variables
 
 We have talked about omitted variables as part of our EDA.  Here we continue the discussion and also talk about the direction of bias.
@@ -849,6 +863,8 @@ We considered other secondary factors that we thought were worth calling out as 
 * Underreporting and unreported crimes:  It is also worth checking via other sources how much crime goes unreported in North Carolina, and whether data is often "corrected" as time goes by.
 
 * Tourism:  As we outlined in the initial analysis, tourism is an omitted variable that can affect our analysis.  If a county depends on tourism, it may have mostly floating population.  This causes problems when modeling using density of resident population.
+
+-----
 
 # 6. Conclusion
 
