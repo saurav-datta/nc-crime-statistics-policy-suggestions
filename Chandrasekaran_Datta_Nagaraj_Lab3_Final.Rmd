@@ -350,6 +350,16 @@ We see that crime rate is much higher in urban areas than rural areas, confirmin
 
 We have only 8 counties termed urban, so it is a small sample.  Therefore, and since we have already selected density, we will *not* include this variable in our model.
 
+We also compared crime rate across urban vs. rural, *ceteris paribus*.
+
+```{r}
+m <- lm(log(crmrte) ~ factor(urban), data = crime_data)
+summary(m)
+```
+
+We see that being an urban county is highly statistically significant for crime rate.  Also, there is a difference of 0.92 (or 92%) between crime rate in urban and rural areas.  This is a lot and shows that crime is strongly correlated with urban areas.
+
+We then performed an analysis on the geographic distribution. From this , we see that crime is higher in central region.  This is because the big cities of North Carolina are close to its center geographically.  The west is mostly mountains with very few people.  There are 2 cities in the "Other" region, and they show as outliers with high crime rate in the corresponding boxplot.
 
 ```{r}
 par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
@@ -361,91 +371,29 @@ boxplot(crime_data_central$crmrte, ylim=c(0.0, 0.1), main = "Central")
 boxplot(crime_data_other$crmrte, ylim=c(0.0, 0.1), main = "Other")
 ```
 
-We also see that crime is higher in central region.  This is because the big cities of North Carolina are close to its center geographically.  The west is mostly mountains with very few people.  There are 2 cities in the "Other" region, and they show as outliers with high crime rate in the corresponding boxplot.
+From our analysis of the geographic distribution, we observed the following:
 
-This gives another way of looking at crime as a function of urban, dense areas.  It also suggests a different regression model based on the regions, which we attempt later.
+* 27 observations have been marked as central with no overlap on west or urban
 
-Let us compare crime rate across urban vs. rural, *ceteris paribus*.
+* 18 observations have been marked as  west with no overlap on central or urban
 
-```{r}
-m <- lm(log(crmrte) ~ factor(urban), data = crime_data)
-summary(m)
-```
-
-We see that being an urban county is highly statistically significant for crime rate.  Also, there is a difference of 0.92 (or 92%) between crime rate in urban and rural areas.  This is a lot and shows that crime is strongly correlated with urban areas.
-
-### FIXME
-
-Next, we will check across regions.
-
-```{r}
-crime_urban <- sqldf('SELECT COUNT(*) AS urban FROM crime_data WHERE urban=1')
-crime_urban <- sqldf('SELECT COUNT(*) AS urban FROM crime_data WHERE urban=1')
-
-sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND 
-      (central!=1 OR urban !=1)')
-```
-
-```{r eval=FALSE}
-sqldf('SELECT COUNT(*) AS Only_Central FROM crime_data WHERE central=1 AND 
-      (west!=1 AND urban !=1)')
-sqldf('SELECT COUNT(*) AS Only_West FROM crime_data WHERE west=1 AND 
-      (central!=1 AND urban !=1)')
-sqldf('SELECT COUNT(*) AS Only_Urban FROM crime_data WHERE urban=1 AND 
-      (central!=1 AND west !=1)')
-sqldf('SELECT COUNT(*) AS All_regions FROM crime_data WHERE central=1 AND 
-      west=1 AND urban =1')
-sqldf('SELECT COUNT(*) AS Central_And_West FROM crime_data WHERE central=1 
-      AND west=1' )
-sqldf('SELECT COUNT(*) AS West_And_Urban FROM crime_data WHERE west=1 AND urban=1' )
-sqldf('SELECT COUNT(*) AS Central_And_Urban FROM crime_data WHERE central=1 AND
-      urban=1' )
-sqldf('SELECT COUNT(*) AS No_Region FROM crime_data WHERE central!=1 AND 
-      west!=1 AND urban!=1' )
-```
-
-We observe the below:
-
-* 27 observations  have been marked as central with no overlap on west or urban
-
-* 18 observations  have been marked as  west with no overlap on central or urban
-
-* 2 observations  have been marked as  urban with no overlap on central or west
+* 2 observations have been marked as  urban with no overlap on central or west
 
 * No observations is marked as  urban and  central and west
 
-* 1 observation  has been marked as both central and west.
+* 1 observation has been marked as both central and west.
 
-* 1 observation  has been marked as both west and urban
+* 1 observation has been marked as both west and urban
 
 * 5 observations have been marked as both central and urban
 
 * 32 observations have not been marked as either west nor central nor urban
 
-We interpret this to mean that an attempt was made to mark the observations geographically as well as by urban (or rural). However, the assignment is not complete as we we can see. Some regions have been been given any label as to their region; these may belong to a different geographical region or rural.
+We interpret this to mean that an attempt was made to mark the observations geographically as well as by urban (or rural). However, we feel this assignment isn't complete as some regions haven't been given any label.
 
+In general the west region has more occurences of lower crime rate than the central region. There is a significant overlap between the observations marked as west/central and those marked as urban. Also, there are no regions marked as rural.
 
-```{r}
-crime_data_sql_central=sqldf('SELECT * FROM crime_data WHERE central=1 AND 
-                         (west!=1 AND urban!=1)')
-crime_data_sql_west=sqldf('SELECT * FROM crime_data WHERE west=1 AND 
-                      (central!=1 AND urban!=1)')
-```
-
-
-We can see that observations marked as central have a higher maximum crime rate compare to those marked as west.
-
-```{r}
-par(mfrow=c(2,4), mai=c(0.35,0.35,0.35,0.35))
-boxplot(crime_data_sql_central$crmrte, main = "Crime: Central", ylim=c(0.0,0.1))
-boxplot(crime_data_west$crmrte, main = "Crime: West", ylim=c(0.0,0.1))
-hist(crime_data_sql_central$crmrte, main="Crime: Central", breaks=15, 
-     xlim=c(0.0, 0.1), ylim=c(0, 7))
-hist(crime_data_sql_west$crmrte, main="Crime: West", breaks=15, 
-     xlim=c(0.0, 0.1), ylim=c(0, 7))
-```
-
-The west region has more occurences of lower crime rate than the central region. There is a significant overlap between the observations marked as west/central and those marked as urban. Also, there are no regions marked as rural. So, we are not analyzing the observations marked as urban.
+This analysis provides another way of looking at crime as a function of urban, dense areas.  It also suggests a different regression model based on the regions, which we attempt later.
 
 -----
 
@@ -625,7 +573,7 @@ Any population distribution could be represented as a linear model plus some err
 
 For this assumption, the data needs to be a random sample drawn from the population.  In general, we need to know about the experiment setup and procedure.
 
-We first note that North Carolina is divided into 100 counties. Our dataset contained information from only 90 different counties. Though we didn't use data from all counties, there was no indication of non-random sampling during our analysis. We therefore assume that the counties sampled are indeed random and thus our assumption is met for all the models we created.
+We first note that North Carolina is divided into 100 counties. Our dataset contained information from only 90 different counties. Though we didn't use data from all counties, there was no indication of non-random sampling during our analysis. We therefore assume that the counties sampled are random and presume our criterion is met for all the models we created.
 
 #### CLM.3: No Perfect Multicollinearity
 
@@ -747,6 +695,7 @@ hist(model3$residuals, main="Residuals")
 
 This model comes closest to satisfying all 6 CLM assumptions.  We see a nice spline on 0.  
 
+#### Variation to Model 3
 We will now build a variation of model3 that includes all the wage variables in addition to the model3 variables.  We want to see if the wages are jointly significant.
 
 ```{r}
@@ -758,28 +707,20 @@ model3b = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               + mix,
             data=crime_data)
 summary(model3b)$adj.r.squared
-par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
-plot(model3b, which=c(1,2,5))
-```
-
-The coeftest confirms that none of the wage variables have a significant effect:
-
-```{r}
+#par(mfrow=c(2,3), mai=c(0.35,0.35,0.35,0.35))
+#plot(model3b, which=c(1,2,5))
 coeftest(model3b, vcov = vcovHC)
 ```
 
-We will now investigate if the wage figures together make a difference.
+The coeftest confirms that none of the wage variables individually have any significant effect. 
 
-```{r echo=FALSE}
+```{r include=FALSE}
 f_check_null <- function(in_field_name, in_db_name ) {
   sql=sprintf("SELECT COUNT(1) as COUNT_NULL_OR_NA FROM %s WHERE (%s IS \"NA\" or %s IS NULL or %s = ' ' or %s = '')", in_db_name, in_field_name,in_field_name,in_field_name,in_field_name)
   sqldf(sql)
 }
-```
 
-Before combining the wage figures, we have to check if any of them are NA.  We also check if the wage types are all numeric.
-
-```{r eval=FALSE}
+#Before combining the wage figures, we have to check if any of them are NA.  We also check if the wage types are all numeric.
 f_check_null("wcon", "crime_data")
 f_check_null("wloc", "crime_data")
 f_check_null("wtrd", "crime_data")
@@ -800,12 +741,18 @@ typeof(crime_data$wfed)
 typeof(crime_data$wsta)
 ```
 
+We finally perform a similar experiment to check if sum of all wages has any effet:
 
 ```{r}
 crime_tmp = sqldf("SELECT *, wcon+wloc+wtrd+wtuc+wfir+wser+wmfg+wfed+wsta AS 'sum_wages'
                 FROM crime_data" )
+```
 
+```{r include=FALSE}
 sqldf('SELECT sum_wages from crime_tmp LIMIT 5')
+```
+
+```{r}
 crime_data_tmp = crime_tmp
 model3c = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               pctmin80 + pctymle
@@ -815,16 +762,14 @@ model3c = lm(log_crmrte ~ prbarr + log_prbconv + log_density +
               +mix,
             data=crime_data_tmp)
 summary(model3c)$adj.r.squared
-```
 
-
-```{r}
 coeftest(model3c, vcov = vcovHC)
 linearHypothesis(model3c, c("sum_wages = 0"), vcov = vcovHC)
 ```
 
 We can see from the coeftest that the sum of wages has no significant effect on the model. A similar conclusion can be drawn from the linearHypothesis test.
 
+#### Measure of fit of three different models
 ```{r}
 AIC(model1, model2, model3)
 ```
@@ -833,9 +778,9 @@ The AIC scores also reflect the fit: the last model has the best (least) score, 
 
 #### CLM observations for other models (2 and 3)
 
-For both our other models (2 and 3), we observed that most of the CLM assumptions were satisfied. They both supported: linear in parameters, random sampling, multicollinearity and had normal residuals.
+For both our other models (2 and 3), we observed that most of the CLM assumptions were satisfied and were mostly in line with what we observed in model 1. They both supported: linear in parameters, random sampling, multicollinearity and had normal residuals.
 
-The one difference was that these other models actually satisfied Homoskedasticity as well. We believe that by adding all the variables, as in model3, we are likely canceling out variances in errors.
+Both models 2 and 3 also supported heteroskedasticity, so we used robust standard errors while performing our analysis. We believe that by adding all the variables, as in model3, we are likely canceling out some of the variances in errors.
 
 ### Model 4
 
@@ -863,6 +808,8 @@ The models for West and Central regions are better than the general model 2 we h
 
 However, for other regions, our model has lower adjusted $R^2$ than West or Central. This shows that the observations for other regions need to be analyzed with a model different from the generic one.  It could also be that our model is influenced heavily by the observations from the urban areas in West and Central.
 
+### Regression Table
+
 ```{r echo=FALSE, results="asis"}
 se.model1 = sqrt(diag(vcovHC(model1)))
 se.model2 = sqrt(diag(vcovHC(model2)))
@@ -881,25 +828,25 @@ We have talked about omitted variables as part of our EDA.  Here we continue the
 
 The important omitted variables that come to mind are:
 
-* Median level of education in the county: The median level of education in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+* Median level of education in the county: We believe that the education level of county residents is an omitted variable in our model. And we expect education level to be negatively correlated to the crime rate i.e. ($\beta_{educ} < 0$). In our model 1, we believe the omitted variable will have negative correlation to prbarr variable - higher the amount of education the lower the probability of arrests will be i.e. ($\alpha_{prbarr} < 0$), assuming *ceteris paribus*. The OMVB is thus ($\beta_{educ} * \alpha_{prbarr} > 0$). Given ($\beta_{prbarr} > 0$) then the OLS coefficient on *prbarr* will be scaled away from zero (more positive) gaining statistical significance.
 
-* Median ratio of total household income to number of family members: The median ratio of total household income to number of family members in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen, and a positive correlation with taxpc. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive. For a model using taxpc, the OVB bias would be negative
+* Median ratio of total household income to number of family members: The median ratio of total household income to number of family members in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr and a positive correlation with taxpc. So, if a model uses prbarr, the OV bias would be positive. For a model using taxpc, the OV bias would be negative
 
-* Total number of neighbourhood crime watch groups in the county: The total number of neighbourhood crime watch groups in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive
+* Total number of neighbourhood crime watch groups in the county: The total number of neighbourhood crime watch groups in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr. So, if a model uses prbarr, the OV bias would be positive
 
-* Family cohesiveness such as divorce rate, domestic violence:  This maybe difficult to measure. The family cohesiveness measure may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+* Family cohesiveness such as divorce rate, domestic violence:  This maybe difficult to measure.The family cohesiveness measure may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr. So, if a model uses prbarr, the OV bias would be positive.
 
-* Any extreme climate change when the crime occured. This can be a significant change compared to the expected climate in that month. Higher temperatures lead to high tempers and may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+* Any extreme climate change when the crime occured. This can be a significant change compared to the expected climate in that month. Higher temperatures lead to high tempers and may have a positive correlation to crime rate. This OV will also have a positive correlation with prbarr. So, if a model uses prbarr, the OV bias would be positive.
 
-* Alcoholism and substance abuse: Patient data from hospitals and police data can be a good marker to judge this.  High number of cases of drug abuse correlates with higher crime rate to a large extent. This OV will also have a positive correlation with prbarr, prbconv, prbpris, avgsen. So, if a model uses prbarr, prbconv, prbpris, avgsen, the OVB bias would be positive.
+* Alcoholism and substance abuse: Patient data from hospitals and police data can be a good marker to judge this.  High number of cases of drug abuse correlates with higher crime rate to a large extent. This OV will also have a positive correlation with prbarr and pctymle. So, if a model uses prbarr and pctmyle, the OV bias would be positive.
+
+We considered other secondary factors that we thought were worth calling out as well:
 
 * Repeat crimes:  The data does not have information about serial criminals as against first-time offenders.  If most of the crime is due to repeat offenders, then we will have to accommodate our policies accordingly.
 
 * Underreporting and unreported crimes:  It is also worth checking via other sources how much crime goes unreported in North Carolina, and whether data is often "corrected" as time goes by.
 
 * Tourism:  As we outlined in the initial analysis, tourism is an omitted variable that can affect our analysis.  If a county depends on tourism, it may have mostly floating population.  This causes problems when modeling using density of resident population.
-
-* Geography:  Geography also tends to affect crime, in either aiding or hindering it: Western regions of North Carolina are hilly, whereas the eastern ones are plain. 
 
 # 6. Conclusion
 
