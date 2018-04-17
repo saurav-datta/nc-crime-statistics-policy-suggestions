@@ -830,7 +830,7 @@ The important omitted variables that come to mind are:
 
 * Median level of education in the county: We believe that the education level of county residents is an omitted variable in our model. And we expect education level to be negatively correlated to the crime rate i.e. ($\beta_{educ} < 0$). In our model 1, we believe the omitted variable will have negative correlation to prbarr variable - higher the amount of education the lower the probability of arrests will be i.e. ($\alpha_{prbarr} < 0$), assuming *ceteris paribus*. The OMVB is thus ($\beta_{educ} * \alpha_{prbarr} > 0$). Given ($\beta_{prbarr} > 0$) then the OLS coefficient on *prbarr* will be scaled away from zero (more positive) gaining statistical significance.
 
-Similarly reasoning is applied to all the following omitted variables as well.
+Similar reasoning is applied to all the following omitted variables as well.
 
 * Median ratio of total household income to number of family members: The median ratio of total household income to number of family members in the county may have a negative correlation to crime rate. This OV will also have a negative correlation with prbarr and a positive correlation with taxpc. So, if a model uses prbarr, the OV bias would be positive. For a model using taxpc, the OV bias would be negative
 
